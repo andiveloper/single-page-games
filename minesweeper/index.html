@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e0e7ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Minesweeper 💣</title>
+  <style>
+/* SPG-DESIGN:BEGIN */
+/* Single-Page Games: gemeinsame Designsprache v1
+   Quelle: design/spg.css. Nicht in den Spielen von Hand ändern,
+   sondern hier ändern und `node tools/design.mjs --write` ausführen. */
+:root {
+  --font: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-2: rgba(255, 255, 255, 0.88);
+  --line: #e2e8f0;
+  --success: #22c55e;
+  --success-2: #34d399;
+  --danger: #ef4444;
+  --radius: 24px;
+  --radius-sm: 18px;
+  --tap: 56px;           /* Mindestgröße für Tasten (Kinderfinger) */
+  --big: 64px;           /* Höhe großer Knöpfe */
+  --gap: 12px;
+  --fs-title: clamp(1.25rem, 5vw, 1.8rem);
+  --fs-text: 1.05rem;
+}
+@media (max-width: 360px) { :root { --tap: 50px; --big: 58px; --gap: 8px; } }
+@media (min-width: 700px) and (min-height: 700px) { :root { --tap: 68px; --big: 72px; --gap: 16px; } }
+
+/* Kategorie-Farben: .u6 = bis 6 Jahre (warm), .ue6 = ab 6 / Erwachsene (kühl).
+   Auf <body> setzen; funktioniert auch auf einzelnen Karten. */
+:root, .u6 {
+  --primary: #f97316;
+  --primary-2: #f59e0b;
+  --primary-ink: #c2410c;
+  --primary-soft: #fff7ed;
+  --primary-line: #fed7aa;
+  --bg: linear-gradient(180deg, #fef3c7 0%, #ffedd5 45%, #ffe4e6 100%);
+  --shadow: 0 4px 14px rgba(194, 65, 12, 0.12);
+}
+.ue6 {
+  --primary: #6366f1;
+  --primary-2: #8b5cf6;
+  --primary-ink: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-line: #c7d2fe;
+  --bg: linear-gradient(180deg, #e0e7ff 0%, #ede9fe 50%, #fae8ff 100%);
+  --shadow: 0 4px 14px rgba(67, 56, 202, 0.14);
+}
+
+/* ---------- Grundlage ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-text);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button { font: inherit; color: inherit; touch-action: manipulation; }
+[hidden] { display: none !important; }
+
+/* Vollbild-Spielseite: kein Scrollen, Zoomen, Markieren oder Pull-to-Refresh */
+html:has(> body.game) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.game {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- Kopfleiste ---------- */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 8px 8px 0;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.topbar h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .actions { display: flex; gap: 8px; flex: none; }
+@media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
+
+/* ---------- Knöpfe ---------- */
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-line), 0 2px 4px rgba(0, 0, 0, 0.08);
+  font-size: calc(var(--tap) * 0.48);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.1s, background 0.2s;
+}
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+
+.big-btn {
+  width: 100%;
+  min-height: var(--big);
+  padding: 0 18px;
+  border: none;
+  border-radius: 20px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.1s;
+}
+.big-btn:active { transform: scale(0.96); }
+.big-btn.success { background: linear-gradient(90deg, var(--success-2), var(--success)); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
+.big-btn.plain { background: #f1f5f9; color: var(--ink); box-shadow: none; }
+.big-btn.soft { background: var(--primary-soft); color: var(--primary-ink); box-shadow: inset 0 0 0 2px var(--primary-line); }
+
+.row { display: flex; gap: var(--gap); }
+.row > * { flex: 1; }
+.stack { display: grid; gap: var(--gap); }
+
+/* Auswahl-Kacheln (Anzahl, Schwierigkeit, Farbe ...) */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+.choice-btn {
+  min-height: 84px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.choice-btn.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+
+/* ---------- Karten, Texte ---------- */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted { color: var(--muted); }
+.section-label { text-align: left; font-weight: 700; color: var(--muted); margin: 20px 0 8px; font-size: 0.95rem; }
+
+/* ---------- Dialoge ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.overlay[hidden] { display: none; }
+.dialog {
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: spg-pop-in 0.25s ease-out;
+}
+.dialog h2 { margin: 0 0 6px; font-size: 1.6rem; }
+.dialog p { margin: 0 0 18px; color: var(--muted); font-weight: 500; }
+.big-emoji { font-size: 56px; line-height: 1.1; margin-bottom: 6px; }
+@keyframes spg-pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ---------- Hinweise, Konfetti ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 3000;
+  background: #1e293b;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 600;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+.toast[hidden] { display: none; }
+.confetti { position: fixed; inset: 0; z-index: 1500; pointer-events: none; }
+.confetti[hidden] { display: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* SPG-DESIGN:END */
+
+    .topbar h1 { display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+    .topbar h1 .stat { display: inline-flex; align-items: center; gap: 4px; color: var(--primary-ink); }
+
+    #stage {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      padding: var(--gap) 8px 8px;
+    }
+    #board {
+      --cell: 32px;
+      display: grid;
+      gap: 3px;
+      padding: 6px;
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+      touch-action: none;
+    }
+    .cell {
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: calc(var(--cell) * 0.22);
+      display: grid;
+      place-items: center;
+      font-size: calc(var(--cell) * 0.56);
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      background: linear-gradient(145deg, #a5b4fc, #818cf8);
+      box-shadow: inset 0 -3px 0 rgba(67, 56, 202, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.45);
+      transition: transform 0.08s;
+    }
+    .cell.pressed { transform: scale(0.88); }
+    .cell.open {
+      cursor: default;
+      background: var(--surface);
+      box-shadow: inset 0 0 0 1px var(--line);
+      animation: open 0.18s ease-out;
+    }
+    @keyframes open { from { transform: scale(0.7); } to { transform: scale(1); } }
+    .cell.flag { font-size: calc(var(--cell) * 0.5); }
+    .cell.boom { background: var(--danger); box-shadow: none; }
+    .cell.wrong { background: #fecaca; }
+    .n1 { color: #2563eb; } .n2 { color: #16a34a; } .n3 { color: #dc2626; } .n4 { color: #4338ca; }
+    .n5 { color: #9f1239; } .n6 { color: #0d9488; } .n7 { color: #1e293b; } .n8 { color: #64748b; }
+
+    #board.lost .cell:not(.open) { filter: saturate(0.5); }
+
+    .best { margin: 0; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .help { margin: 0; padding: 0; list-style: none; text-align: left; display: grid; gap: 6px; font-weight: 600; }
+    .help span { display: inline-block; width: 1.8em; }
+    .choice-btn small { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body class="game ue6">
+
+  <header class="topbar">
+    <h1>
+      <span class="stat" aria-label="Minen übrig">💣 <span id="mines-left">10</span></span>
+      <span class="stat" aria-label="Zeit">⏱️ <span id="time">0</span></span>
+    </h1>
+    <div class="actions">
+      <button class="icon-btn" id="btn-flag" aria-label="Flaggen-Modus" aria-pressed="false">🚩</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen">⚙️</button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <div id="board" role="grid" aria-label="Minenfeld"></div>
+  </main>
+
+  <!-- Einstellungen -->
+  <div class="overlay" id="settings" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Einstellungen</h2>
+
+      <div class="section-label">Stufe</div>
+      <div class="choice-grid" id="level-grid"></div>
+
+      <div class="section-label">Bestzeiten</div>
+      <p class="best" id="best-times"></p>
+
+      <div class="section-label">So geht's</div>
+      <ul class="help">
+        <li><span>👆</span> Tippen: aufdecken</li>
+        <li><span>✋</span> Lang drücken oder 🚩: Flagge</li>
+        <li><span>🔢</span> Zahl tippen: Nachbarn aufdecken</li>
+      </ul>
+
+      <a class="big-btn plain" id="btn-home" href="../" style="margin-top:18px">🏠 Alle Spiele</a>
+      <button class="big-btn" id="btn-close-settings" style="margin-top:12px">Fertig</button>
+    </div>
+  </div>
+
+  <!-- Rückfrage bei Neustart -->
+  <div class="overlay" id="confirm" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="big-emoji">🔄</div>
+      <h2 id="confirm-title">Neues Spiel?</h2>
+      <p>Das laufende Spiel geht verloren.</p>
+      <div class="row">
+        <button class="big-btn plain" id="confirm-no" aria-label="Nein">✖️</button>
+        <button class="big-btn success" id="confirm-yes" aria-label="Ja">✔️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spielende -->
+  <div class="overlay" id="end" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="end-title">
+      <div class="big-emoji" id="end-emoji">🎉</div>
+      <h2 id="end-title">Geschafft!</h2>
+      <p id="end-text"></p>
+      <div class="stack">
+        <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+        <button class="big-btn soft" id="btn-look">👀 Feld ansehen</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="confetti" class="confetti" hidden></canvas>
+  <div id="toast" class="toast" hidden></div>
+
+  <script>
+  'use strict';
+
+  /* ===================================================================
+     Töne (Web Audio, keine Dateien nötig)
+     =================================================================== */
+  const Sound = {
+    ctx: null,
+    init() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      const t = this.ctx.currentTime + start;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+    open(n) { this.init(); if (this.ctx) this.tone(420 + Math.min(n, 30) * 12, 0, 0.08, 'sine', 0.14, 620 + Math.min(n, 30) * 15); },
+    flag() { this.init(); if (this.ctx) this.tone(700, 0, 0.07, 'square', 0.06, 900); },
+    unflag() { this.init(); if (this.ctx) this.tone(600, 0, 0.07, 'square', 0.05, 420); },
+    boom() {
+      this.init();
+      if (!this.ctx) return;
+      this.tone(160, 0, 0.6, 'sawtooth', 0.3, 40);
+      this.tone(90, 0.05, 0.7, 'square', 0.18, 30);
+    },
+    win() {
+      this.init();
+      if (!this.ctx) return;
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
+    }
+  };
+
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  /* ===================================================================
+     Konfetti
+     =================================================================== */
+  const Confetti = {
+    canvas: document.getElementById('confetti'),
+    raf: null,
+    parts: [],
+    start() {
+      const c = this.canvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      c.style.width = innerWidth + 'px';
+      c.style.height = innerHeight + 'px';
+      c.hidden = false;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const n = Math.round(Math.min(160, innerWidth / 5));
+      this.parts = Array.from({ length: n }, () => ({
+        x: Math.random() * innerWidth,
+        y: -Math.random() * innerHeight,
+        s: Math.random() * 10 + 6,
+        c: colors[(Math.random() * colors.length) | 0],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2.5,
+        r: Math.random() * 360,
+        vr: (Math.random() - 0.5) * 10
+      }));
+      const end = performance.now() + 7000;
+      const loop = (now) => {
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of this.parts) {
+          p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.y > innerHeight + 20 && now < end) p.y = -20;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.r * Math.PI / 180);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+          ctx.restore();
+        }
+        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
+        else this.stop();
+      };
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      cancelAnimationFrame(this.raf);
+      this.canvas.hidden = true;
+    }
+  };
+
+  /* ===================================================================
+     Spiel
+     =================================================================== */
+  const $ = (id) => document.getElementById(id);
+
+  // Felder im Hochformat (Zeilen > Spalten); quer wird das Feld gespiegelt angezeigt.
+  const LEVELS = {
+    easy:   { label: 'Leicht', emoji: '🙂', cols: 8,  rows: 10, mines: 10 },
+    medium: { label: 'Mittel', emoji: '😎', cols: 10, rows: 14, mines: 24 },
+    hard:   { label: 'Schwer', emoji: '🤯', cols: 12, rows: 18, mines: 45 }
+  };
+  const LONG_PRESS = 380;
+
+  const store = {
+    get(key, fallback) { try { const v = localStorage.getItem('minesweeper.' + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+    set(key, value) { try { localStorage.setItem('minesweeper.' + key, JSON.stringify(value)); } catch (e) {} }
+  };
+
+  const Game = {
+    level: store.get('level', 'easy'),
+    pendingLevel: null,
+    cells: [],         // { mine, n, open, flag, el }
+    rows: 0, cols: 0, mines: 0,
+    state: 'ready',    // ready | playing | won | lost
+    flags: 0, opened: 0,
+    flagMode: false,
+    startTime: 0, elapsed: 0, timer: null,
+    transposed: false,
+
+    init() {
+      if (!LEVELS[this.level]) this.level = 'easy';
+      const board = $('board');
+      board.addEventListener('pointerdown', (e) => this.onDown(e));
+      board.addEventListener('pointermove', (e) => this.onMove(e));
+      board.addEventListener('pointerup', (e) => this.onUp(e));
+      board.addEventListener('pointercancel', () => this.cancelPress());
+      board.addEventListener('pointerleave', () => this.cancelPress());
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      $('btn-flag').addEventListener('click', () => this.toggleFlagMode());
+      $('btn-new').addEventListener('click', () => this.askNew());
+      $('btn-settings').addEventListener('click', () => this.openSettings());
+      $('btn-close-settings').addEventListener('click', () => this.closeSettings());
+      $('settings').addEventListener('click', (e) => { if (e.target.id === 'settings') this.closeSettings(); });
+      $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; this.pendingLevel = null; });
+      $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.applyPendingLevel(); this.newGame(); });
+      $('btn-again').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); this.newGame(); });
+      $('btn-look').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); });
+      if (location.protocol === 'file:') $('btn-home').hidden = true;
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'f' || e.key === 'F') this.toggleFlagMode();
+        else if (e.key === 'n' || e.key === 'N') this.askNew();
+        else if (e.key === 'Escape') { $('settings').hidden = true; $('confirm').hidden = true; }
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (this.state !== 'playing') return;
+        if (document.hidden) this.stopTimer(); else this.startTimer();
+      });
+
+      let resizeRaf = 0;
+      window.addEventListener('resize', () => { cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(() => this.layout()); });
+
+      this.buildLevelGrid();
+      this.newGame();
+    },
+
+    /* ---------- Aufbau ---------- */
+    newGame() {
+      const L = LEVELS[this.level];
+      this.rows = L.rows; this.cols = L.cols; this.mines = L.mines;
+      this.state = 'ready';
+      this.flags = 0; this.opened = 0;
+      this.stopTimer(); this.elapsed = 0;
+      this.cells = [];
+      const board = $('board');
+      board.classList.remove('lost');
+      board.textContent = '';
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const el = document.createElement('div');
+          el.className = 'cell';
+          el.dataset.i = this.cells.length;
+          el.setAttribute('role', 'gridcell');
+          board.appendChild(el);
+          this.cells.push({ r, c, mine: false, n: 0, open: false, flag: false, el });
+        }
+      }
+      this.updateHud();
+      this.layout(true);
+    },
+
+    // Passt die Feldgröße an den Platz an; quer wird das Feld transponiert.
+    layout(force) {
+      const stage = $('stage');
+      const cs = getComputedStyle(stage);
+      const w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 12;
+      const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 12;
+      const transposed = w > h;
+      const cols = transposed ? this.rows : this.cols;
+      const rows = transposed ? this.cols : this.rows;
+      const gap = 3;
+      const cell = Math.max(18, Math.min(64, Math.floor(Math.min((w - gap * (cols - 1)) / cols, (h - gap * (rows - 1)) / rows))));
+      const board = $('board');
+      board.style.setProperty('--cell', cell + 'px');
+      board.style.gridTemplateColumns = `repeat(${cols}, var(--cell))`;
+      if (force || transposed !== this.transposed) {
+        this.transposed = transposed;
+        for (const cl of this.cells) {
+          cl.el.style.gridRow = (transposed ? cl.c : cl.r) + 1;
+          cl.el.style.gridColumn = (transposed ? cl.r : cl.c) + 1;
+        }
+      }
+    },
+
+    neighbors(i) {
+      const { r, c } = this.cells[i];
+      const out = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) continue;
+          const rr = r + dr, cc = c + dc;
+          if (rr >= 0 && rr < this.rows && cc >= 0 && cc < this.cols) out.push(rr * this.cols + cc);
+        }
+      }
+      return out;
+    },
+
+    // Minen erst nach dem ersten Tippen legen: das erste Feld und seine Nachbarn sind frei.
+    placeMines(safe) {
+      const blocked = new Set([safe, ...this.neighbors(safe)]);
+      const free = [];
+      for (let i = 0; i < this.cells.length; i++) if (!blocked.has(i)) free.push(i);
+      for (let k = 0; k < this.mines; k++) {
+        const j = k + Math.floor(Math.random() * (free.length - k));
+        [free[k], free[j]] = [free[j], free[k]];
+        this.cells[free[k]].mine = true;
+      }
+      for (let i = 0; i < this.cells.length; i++) {
+        this.cells[i].n = this.neighbors(i).reduce((s, j) => s + (this.cells[j].mine ? 1 : 0), 0);
+      }
+    },
+
+    /* ---------- Eingabe ---------- */
+    press: null,
+    cellFromEvent(e) {
+      const el = e.target.closest('.cell');
+      return el ? +el.dataset.i : -1;
+    },
+    onDown(e) {
+      if (this.state === 'won' || this.state === 'lost') return;
+      const i = this.cellFromEvent(e);
+      if (i < 0) return;
+      Sound.init();
+      this.cancelPress();
+      if (e.button === 2) { this.toggleFlag(i); return; }
+      if (e.button > 0) return;
+      const cell = this.cells[i];
+      cell.el.classList.add('pressed');
+      this.press = {
+        i, x: e.clientX, y: e.clientY, id: e.pointerId, long: false,
+        t: setTimeout(() => {
+          if (!this.press) return;
+          this.press.long = true;
+          cell.el.classList.remove('pressed');
+          // Langes Drücken: Flagge (im Flaggen-Modus umgekehrt: aufdecken)
+          if (this.flagMode) this.reveal(i); else this.toggleFlag(i);
+        }, LONG_PRESS)
+      };
+    },
+    onMove(e) {
+      if (!this.press || e.pointerId !== this.press.id) return;
+      if (Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) > 12) this.cancelPress();
+    },
+    onUp(e) {
+      const p = this.press;
+      if (!p || e.pointerId !== p.id) return;
+      this.cancelPress();
+      if (p.long) return;
+      if (this.flagMode && !this.cells[p.i].open) this.toggleFlag(p.i);
+      else this.reveal(p.i);
+    },
+    cancelPress() {
+      if (!this.press) return;
+      clearTimeout(this.press.t);
+      this.cells[this.press.i]?.el.classList.remove('pressed');
+      this.press = null;
+    },
+
+    toggleFlagMode() {
+      this.flagMode = !this.flagMode;
+      $('btn-flag').classList.toggle('active', this.flagMode);
+      $('btn-flag').setAttribute('aria-pressed', this.flagMode);
+      Sound.flag();
+    },
+
+    /* ---------- Regeln ---------- */
+    toggleFlag(i) {
+      if (this.state === 'won' || this.state === 'lost') return;
+      const cell = this.cells[i];
+      if (cell.open) return;
+      cell.flag = !cell.flag;
+      this.flags += cell.flag ? 1 : -1;
+      cell.flag ? Sound.flag() : Sound.unflag();
+      buzz(cell.flag ? 30 : 15);
+      this.paint(cell);
+      this.updateHud();
+    },
+
+    reveal(i) {
+      if (this.state === 'won' || this.state === 'lost') return;
+      const cell = this.cells[i];
+      if (cell.flag) return;
+      if (this.state === 'ready') {
+        this.placeMines(i);
+        this.state = 'playing';
+        this.startTimer();
+      }
+      if (cell.open) { this.chord(i); return; }
+      if (cell.mine) { this.lose(i); return; }
+      const n = this.flood([i]);
+      Sound.open(n);
+      this.checkWin();
+    },
+
+    // Tippen auf eine Zahl: stimmen die Flaggen ringsum, werden die übrigen Nachbarn aufgedeckt.
+    chord(i) {
+      const cell = this.cells[i];
+      if (!cell.n) return;
+      const around = this.neighbors(i);
+      const flagged = around.filter((j) => this.cells[j].flag).length;
+      if (flagged !== cell.n) return;
+      const hidden = around.filter((j) => !this.cells[j].open && !this.cells[j].flag);
+      if (!hidden.length) return;
+      const mine = hidden.find((j) => this.cells[j].mine);
+      if (mine !== undefined) { this.lose(mine); return; }
+      Sound.open(this.flood(hidden));
+      this.checkWin();
+    },
+
+    flood(start) {
+      const stack = [...start];
+      let count = 0;
+      while (stack.length) {
+        const i = stack.pop();
+        const cell = this.cells[i];
+        if (cell.open || cell.flag || cell.mine) continue;
+        cell.open = true;
+        this.opened++;
+        count++;
+        this.paint(cell);
+        if (cell.n === 0) for (const j of this.neighbors(i)) if (!this.cells[j].open) stack.push(j);
+      }
+      return count;
+    },
+
+    checkWin() {
+      if (this.opened !== this.cells.length - this.mines) return;
+      this.state = 'won';
+      this.stopTimer();
+      for (const cell of this.cells) if (cell.mine && !cell.flag) { cell.flag = true; this.paint(cell); }
+      this.flags = this.mines;
+      this.updateHud();
+      const secs = Math.floor(this.elapsed / 1000);
+      const best = store.get('best', {});
+      const record = !(best[this.level] <= secs);
+      if (record) { best[this.level] = secs; store.set('best', best); }
+      Sound.win();
+      buzz([60, 60, 120]);
+      Confetti.start();
+      $('end-emoji').textContent = record ? '🏆🎉' : '🎉😎';
+      $('end-title').textContent = record ? 'Neue Bestzeit!' : 'Geschafft!';
+      $('end-text').textContent = `${LEVELS[this.level].label} in ${this.fmt(secs)}` + (record ? '' : ` · Bestzeit ${this.fmt(best[this.level])}`);
+      setTimeout(() => { if (this.state === 'won') $('end').hidden = false; }, 700);
+    },
+
+    lose(i) {
+      this.state = 'lost';
+      this.stopTimer();
+      const hit = this.cells[i];
+      for (const cell of this.cells) {
+        if (cell.mine && !cell.flag) { cell.open = true; this.paint(cell); }
+        else if (cell.flag && !cell.mine) cell.el.classList.add('wrong');
+      }
+      hit.el.classList.add('boom');
+      $('board').classList.add('lost');
+      Sound.boom();
+      buzz([120, 60, 200]);
+      $('end-emoji').textContent = '💥😵';
+      $('end-title').textContent = 'Boom!';
+      const left = this.cells.length - this.mines - this.opened;
+      $('end-text').textContent = `Noch ${left} ${left === 1 ? 'Feld' : 'Felder'} bis zum Ziel.`;
+      setTimeout(() => { if (this.state === 'lost') $('end').hidden = false; }, 900);
+    },
+
+    paint(cell) {
+      const el = cell.el;
+      el.className = 'cell';
+      el.textContent = '';
+      if (cell.open) {
+        el.classList.add('open');
+        if (cell.mine) el.textContent = '💣';
+        else if (cell.n) { el.textContent = cell.n; el.classList.add('n' + cell.n); }
+      } else if (cell.flag) {
+        el.classList.add('flag');
+        el.textContent = '🚩';
+      }
+      el.setAttribute('aria-label', cell.open ? (cell.mine ? 'Mine' : String(cell.n)) : (cell.flag ? 'Flagge' : 'verdeckt'));
+    },
+
+    /* ---------- Zeit, Anzeige ---------- */
+    startTimer() {
+      this.stopTimer();
+      this.startTime = performance.now() - this.elapsed;
+      this.timer = setInterval(() => this.tick(), 250);
+      this.tick();
+    },
+    stopTimer() {
+      if (this.timer) { clearInterval(this.timer); this.timer = null; this.elapsed = performance.now() - this.startTime; }
+    },
+    tick() { this.elapsed = performance.now() - this.startTime; this.updateHud(); },
+    fmt(s) { return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s} s`; },
+    updateHud() {
+      $('mines-left').textContent = this.mines - this.flags;
+      const s = Math.floor(this.elapsed / 1000);
+      $('time').textContent = s >= 60 ? this.fmt(s) : s;
+    },
+
+    /* ---------- Dialoge ---------- */
+    askNew() {
+      if (this.state === 'playing') $('confirm').hidden = false;
+      else { $('end').hidden = true; Confetti.stop(); this.newGame(); }
+    },
+    buildLevelGrid() {
+      const grid = $('level-grid');
+      grid.textContent = '';
+      for (const [key, L] of Object.entries(LEVELS)) {
+        const b = document.createElement('button');
+        b.className = 'choice-btn';
+        b.dataset.level = key;
+        b.innerHTML = `<span>${L.emoji}</span><span>${L.label}</span><small>${L.cols}×${L.rows} · ${L.mines} 💣</small>`;
+        b.addEventListener('click', () => { this.pendingLevel = key; this.refreshSettings(); Sound.flag(); });
+        grid.appendChild(b);
+      }
+    },
+    refreshSettings() {
+      const sel = this.pendingLevel || this.level;
+      for (const b of $('level-grid').children) b.classList.toggle('selected', b.dataset.level === sel);
+      const best = store.get('best', {});
+      $('best-times').textContent = Object.entries(LEVELS)
+        .map(([k, L]) => `${L.emoji} ${best[k] != null ? this.fmt(best[k]) : '–'}`).join('   ');
+    },
+    openSettings() { this.pendingLevel = null; this.refreshSettings(); $('settings').hidden = false; },
+    closeSettings() {
+      $('settings').hidden = true;
+      if (!this.pendingLevel || this.pendingLevel === this.level) { this.pendingLevel = null; return; }
+      if (this.state === 'playing') { $('confirm').hidden = false; return; }
+      this.applyPendingLevel();
+      $('end').hidden = true;
+      this.newGame();
+    },
+    applyPendingLevel() {
+      if (!this.pendingLevel) return;
+      this.level = this.pendingLevel;
+      this.pendingLevel = null;
+      store.set('level', this.level);
+    }
+  };
+
+  Game.init();
+  </script>
+</body>
+</html>
