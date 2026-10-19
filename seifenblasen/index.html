@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fed7aa">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Seifenblasen 🫧</title>
+  <style>
+/* SPG-DESIGN:BEGIN */
+/* Single-Page Games: gemeinsame Designsprache v1
+   Quelle: design/spg.css. Nicht in den Spielen von Hand ändern,
+   sondern hier ändern und `node tools/design.mjs --write` ausführen. */
+:root {
+  --font: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-2: rgba(255, 255, 255, 0.88);
+  --line: #e2e8f0;
+  --success: #22c55e;
+  --success-2: #34d399;
+  --danger: #ef4444;
+  --radius: 24px;
+  --radius-sm: 18px;
+  --tap: 56px;           /* Mindestgröße für Tasten (Kinderfinger) */
+  --big: 64px;           /* Höhe großer Knöpfe */
+  --gap: 12px;
+  --fs-title: clamp(1.25rem, 5vw, 1.8rem);
+  --fs-text: 1.05rem;
+}
+@media (max-width: 360px) { :root { --tap: 50px; --big: 58px; --gap: 8px; } }
+@media (min-width: 700px) and (min-height: 700px) { :root { --tap: 68px; --big: 72px; --gap: 16px; } }
+
+/* Kategorie-Farben: .u6 = bis 6 Jahre (warm), .ue6 = ab 6 / Erwachsene (kühl).
+   Auf <body> setzen; funktioniert auch auf einzelnen Karten. */
+:root, .u6 {
+  --primary: #f97316;
+  --primary-2: #f59e0b;
+  --primary-ink: #c2410c;
+  --primary-soft: #fff7ed;
+  --primary-line: #fed7aa;
+  --bg: linear-gradient(180deg, #fef3c7 0%, #ffedd5 45%, #ffe4e6 100%);
+  --shadow: 0 4px 14px rgba(194, 65, 12, 0.12);
+}
+.ue6 {
+  --primary: #6366f1;
+  --primary-2: #8b5cf6;
+  --primary-ink: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-line: #c7d2fe;
+  --bg: linear-gradient(180deg, #e0e7ff 0%, #ede9fe 50%, #fae8ff 100%);
+  --shadow: 0 4px 14px rgba(67, 56, 202, 0.14);
+}
+
+/* ---------- Grundlage ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-text);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button { font: inherit; color: inherit; touch-action: manipulation; }
+[hidden] { display: none !important; }
+
+/* Vollbild-Spielseite: kein Scrollen, Zoomen, Markieren oder Pull-to-Refresh */
+html:has(> body.game) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.game {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- Kopfleiste ---------- */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 8px 8px 0;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.topbar h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .actions { display: flex; gap: 8px; flex: none; }
+@media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
+
+/* ---------- Knöpfe ---------- */
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-line), 0 2px 4px rgba(0, 0, 0, 0.08);
+  font-size: calc(var(--tap) * 0.48);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.1s, background 0.2s;
+}
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+
+.big-btn {
+  width: 100%;
+  min-height: var(--big);
+  padding: 0 18px;
+  border: none;
+  border-radius: 20px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.1s;
+}
+.big-btn:active { transform: scale(0.96); }
+.big-btn.success { background: linear-gradient(90deg, var(--success-2), var(--success)); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
+.big-btn.plain { background: #f1f5f9; color: var(--ink); box-shadow: none; }
+.big-btn.soft { background: var(--primary-soft); color: var(--primary-ink); box-shadow: inset 0 0 0 2px var(--primary-line); }
+
+.row { display: flex; gap: var(--gap); }
+.row > * { flex: 1; }
+.stack { display: grid; gap: var(--gap); }
+
+/* Auswahl-Kacheln (Anzahl, Schwierigkeit, Farbe ...) */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+.choice-btn {
+  min-height: 84px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.choice-btn.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+
+/* ---------- Karten, Texte ---------- */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted { color: var(--muted); }
+.section-label { text-align: left; font-weight: 700; color: var(--muted); margin: 20px 0 8px; font-size: 0.95rem; }
+
+/* ---------- Dialoge ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.overlay[hidden] { display: none; }
+.dialog {
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: spg-pop-in 0.25s ease-out;
+}
+.dialog h2 { margin: 0 0 6px; font-size: 1.6rem; }
+.dialog p { margin: 0 0 18px; color: var(--muted); font-weight: 500; }
+.big-emoji { font-size: 56px; line-height: 1.1; margin-bottom: 6px; }
+@keyframes spg-pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ---------- Hinweise, Konfetti ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 3000;
+  background: #1e293b;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 600;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+.toast[hidden] { display: none; }
+.confetti { position: fixed; inset: 0; z-index: 1500; pointer-events: none; }
+.confetti[hidden] { display: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* SPG-DESIGN:END */
+
+    /* ---------- Seifenblasen ---------- */
+    .goal {
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.6em;
+      height: 1.6em;
+      margin-left: 6px;
+      padding: 0 6px;
+      border-radius: 999px;
+      vertical-align: middle;
+      font-size: 0.95em;
+      line-height: 1;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+      box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.7), 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+    .goal.number { background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+    .goal.pulse { animation: goal-pulse 0.5s ease-out; }
+    @keyframes goal-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+    .progress { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+    .progress i { width: 10px; height: 10px; border-radius: 50%; background: var(--primary-line); transition: background 0.3s, transform 0.3s; }
+    .progress i.on { background: var(--success); transform: scale(1.2); }
+    @media (max-width: 520px) { .title-text { display: none; } .progress { margin-left: 4px; gap: 3px; } .progress i { width: 8px; height: 8px; } }
+    @media (max-width: 340px) { .progress { display: none; } }
+
+    #stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      margin: var(--gap);
+      border-radius: 28px;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.75), transparent 60%),
+        linear-gradient(180deg, rgba(186, 230, 253, 0.55) 0%, rgba(255, 255, 255, 0.35) 100%);
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.06), var(--shadow);
+    }
+    #play { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+    .choice-grid { grid-template-columns: repeat(3, 1fr); }
+    .choice-btn .em { font-size: 2rem; line-height: 1; }
+  </style>
+</head>
+<body class="game u6">
+
+  <header class="topbar">
+    <h1>🫧 <span class="title-text">Blasen</span><span class="goal" id="goal" hidden></span><span class="progress" id="progress" aria-hidden="true"></span></h1>
+    <div class="actions">
+      <button class="icon-btn" id="btn-new" aria-label="Neu anfangen">🔄</button>
+      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen für Eltern">⚙️</button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <canvas id="play" aria-label="Seifenblasen zum Antippen"></canvas>
+  </main>
+
+  <!-- Einstellungen (für Eltern) -->
+  <div class="overlay" id="settings" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Einstellungen</h2>
+
+      <div class="section-label">Spiel</div>
+      <div class="choice-grid" id="mode-grid">
+        <button class="choice-btn" data-mode="free" aria-label="Frei platzen lassen"><span class="em">🫧</span>Frei</button>
+        <button class="choice-btn" data-mode="color" aria-label="Farben suchen"><span class="em">🎨</span>Farben</button>
+        <button class="choice-btn" data-mode="number" aria-label="Zahlen der Reihe nach"><span class="em">🔢</span>1-10</button>
+      </div>
+
+      <div class="section-label">Tempo</div>
+      <div class="choice-grid" id="speed-grid">
+        <button class="choice-btn" data-speed="0" aria-label="Langsam"><span class="em">🐢</span></button>
+        <button class="choice-btn" data-speed="1" aria-label="Mittel"><span class="em">🐇</span></button>
+        <button class="choice-btn" data-speed="2" aria-label="Schnell"><span class="em">🐆</span></button>
+      </div>
+
+      <div class="section-label">Mehr</div>
+      <div class="row">
+        <button class="big-btn plain" id="btn-voice" aria-pressed="true">🗣️ Stimme</button>
+        <button class="big-btn plain" id="btn-fullscreen">⛶ Vollbild</button>
+      </div>
+      <a class="big-btn plain" id="btn-home" href="../" style="margin-top:12px">🏠 Alle Spiele</a>
+
+      <button class="big-btn" id="btn-close-settings" style="margin-top:20px">Fertig</button>
+    </div>
+  </div>
+
+  <!-- Rückfrage bei Neustart -->
+  <div class="overlay" id="confirm" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="big-emoji">🔄</div>
+      <h2 id="confirm-title">Neu anfangen?</h2>
+      <p>Die Runde beginnt von vorn.</p>
+      <div class="row">
+        <button class="big-btn plain" id="confirm-no" aria-label="Nein">✖️</button>
+        <button class="big-btn success" id="confirm-yes" aria-label="Ja">✔️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gewonnen -->
+  <div class="overlay" id="win" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="win-title">
+      <div class="big-emoji">🎉🫧</div>
+      <h2 id="win-title">Super gemacht!</h2>
+      <p id="win-text">Alle Blasen geplatzt!</p>
+      <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+    </div>
+  </div>
+
+  <canvas id="confetti" class="confetti" hidden></canvas>
+
+  <script>
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+
+  /* ===================================================================
+     Töne (Web Audio, keine Dateien nötig)
+     =================================================================== */
+  const Sound = {
+    ctx: null,
+    init() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      const t = this.ctx.currentTime + start;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+    // Kurzes Rauschen für das „Plopp“
+    noise(start, dur, vol) {
+      const ctx = this.ctx;
+      const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      filter.type = 'highpass';
+      filter.frequency.value = 1500;
+      gain.gain.value = vol;
+      src.buffer = buf;
+      src.connect(filter).connect(gain).connect(ctx.destination);
+      src.start(ctx.currentTime + start);
+    },
+    // Kleine Blasen klingen höher als große
+    pop(size) {
+      this.init();
+      if (!this.ctx) return;
+      const f = 1100 - size * 900 + Math.random() * 120;
+      this.tone(f, 0, 0.09, 'sine', 0.35, f * 0.35);
+      this.noise(0, 0.04, 0.12);
+    },
+    boing() { this.init(); if (this.ctx) this.tone(180, 0, 0.22, 'triangle', 0.18, 260); },
+    cheer() {
+      this.init();
+      if (!this.ctx) return;
+      [523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.08, 0.25, 'triangle', 0.22));
+    },
+    win() {
+      this.init();
+      if (!this.ctx) return;
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
+    }
+  };
+
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  /* ===================================================================
+     Stimme (Sprachausgabe des Geräts, falls vorhanden, auch offline)
+     =================================================================== */
+  const Voice = {
+    on: true,
+    say(text) {
+      if (!this.on || !window.speechSynthesis) return;
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'de-DE';
+        u.rate = 0.95;
+        u.pitch = 1.2;
+        speechSynthesis.speak(u);
+      } catch (e) {}
+    }
+  };
+
+  /* ===================================================================
+     Konfetti
+     =================================================================== */
+  const Confetti = {
+    canvas: $('confetti'),
+    raf: null,
+    parts: [],
+    start(ms = 7000) {
+      const c = this.canvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      c.style.width = innerWidth + 'px';
+      c.style.height = innerHeight + 'px';
+      c.hidden = false;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const n = Math.round(Math.min(160, innerWidth / 5));
+      this.parts = Array.from({ length: n }, () => ({
+        x: Math.random() * innerWidth,
+        y: -Math.random() * innerHeight,
+        s: Math.random() * 10 + 6,
+        c: colors[(Math.random() * colors.length) | 0],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2.5,
+        r: Math.random() * 360,
+        vr: (Math.random() - 0.5) * 10
+      }));
+      const end = performance.now() + ms;
+      const loop = (now) => {
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of this.parts) {
+          p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.y > innerHeight + 20 && now < end) p.y = -20;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.r * Math.PI / 180);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+          ctx.restore();
+        }
+        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
+        else this.stop();
+      };
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      cancelAnimationFrame(this.raf);
+      this.canvas.hidden = true;
+    }
+  };
+
+  /* ===================================================================
+     Spiel
+     =================================================================== */
+  const COLORS = [
+    { key: 'red',    rgb: [239, 68, 68],   dot: '🔴', word: 'Rot' },
+    { key: 'blue',   rgb: [59, 130, 246],  dot: '🔵', word: 'Blau' },
+    { key: 'green',  rgb: [34, 197, 94],   dot: '🟢', word: 'Grün' },
+    { key: 'yellow', rgb: [250, 204, 21],  dot: '🟡', word: 'Gelb' },
+    { key: 'purple', rgb: [168, 85, 247],  dot: '🟣', word: 'Lila' },
+    { key: 'orange', rgb: [249, 115, 22],  dot: '🟠', word: 'Orange' }
+  ];
+  const COLOR_WORDS = { red: 'roten', blue: 'blauen', green: 'grünen', yellow: 'gelben', purple: 'lila', orange: 'orangen' };
+  const ROUND = 10;            // Treffer pro Runde (Farben, Zahlen)
+  const FREE_CHEER = 20;       // Frei: alle 20 Blasen ein Konfetti-Regen
+  const SPEEDS = [0.55, 1, 1.6];
+  const PRAISE = ['Super!', 'Toll!', 'Klasse!', 'Prima!', 'Juhu!'];
+  const STORE = 'spg-seifenblasen';
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+
+  class Game {
+    constructor() {
+      this.canvas = $('play');
+      this.ctx = this.canvas.getContext('2d');
+      this.w = 0;
+      this.h = 0;
+      this.bubbles = [];
+      this.bits = [];             // Tröpfchen und Ringe nach dem Platzen
+      this.mode = 'free';
+      this.speed = 1;
+      this.score = 0;
+      this.target = null;         // Farbe (Farben) oder Zahl (Zahlen)
+      this.spawnIn = 0;
+      this.last = 0;
+      this.paused = false;
+
+      this.load();
+      this.bind();
+      this.resize();
+      this.newRound();
+      requestAnimationFrame((t) => this.frame(t));
+    }
+
+    /* ---------- Einstellungen ---------- */
+    load() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORE) || '{}');
+        if (['free', 'color', 'number'].includes(s.mode)) this.mode = s.mode;
+        if ([0, 1, 2].includes(s.speed)) this.speed = s.speed;
+        if (typeof s.voice === 'boolean') Voice.on = s.voice;
+      } catch (e) {}
+    }
+    save() {
+      try { localStorage.setItem(STORE, JSON.stringify({ mode: this.mode, speed: this.speed, voice: Voice.on })); } catch (e) {}
+    }
+    syncSettings() {
+      for (const b of $('mode-grid').children) b.classList.toggle('selected', b.dataset.mode === this.mode);
+      for (const b of $('speed-grid').children) b.classList.toggle('selected', +b.dataset.speed === this.speed);
+      const v = $('btn-voice');
+      v.setAttribute('aria-pressed', String(Voice.on));
+      v.textContent = Voice.on ? '🗣️ Stimme' : '🔇 Stimme';
+      v.classList.toggle('soft', Voice.on);
+      v.classList.toggle('plain', !Voice.on);
+      if (!window.speechSynthesis) v.hidden = true;
+    }
+
+    bind() {
+      const c = this.canvas;
+      c.addEventListener('pointerdown', (e) => { e.preventDefault(); this.tap(e); });
+
+      $('btn-new').addEventListener('click', () => {
+        if (this.score > 0) $('confirm').hidden = false;
+        else this.newRound();
+      });
+      $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+      $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.newRound(); });
+
+      $('btn-settings').addEventListener('click', () => { this.syncSettings(); $('settings').hidden = false; this.paused = true; });
+      $('btn-close-settings').addEventListener('click', () => this.closeSettings());
+      $('settings').addEventListener('click', (e) => { if (e.target.id === 'settings') this.closeSettings(); });
+
+      $('mode-grid').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-mode]');
+        if (!b || b.dataset.mode === this.mode) return;
+        this.mode = b.dataset.mode;
+        this.save();
+        this.syncSettings();
+        this.newRound();
+      });
+      $('speed-grid').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-speed]');
+        if (!b) return;
+        this.speed = +b.dataset.speed;
+        this.save();
+        this.syncSettings();
+      });
+      $('btn-voice').addEventListener('click', () => {
+        Voice.on = !Voice.on;
+        if (!Voice.on && window.speechSynthesis) speechSynthesis.cancel();
+        this.save();
+        this.syncSettings();
+      });
+
+      // Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein
+      if (location.protocol === 'file:') $('btn-home').hidden = true;
+
+      const fsBtn = $('btn-fullscreen');
+      const root = document.documentElement;
+      if (!root.requestFullscreen && !root.webkitRequestFullscreen) fsBtn.style.display = 'none';
+      fsBtn.addEventListener('click', () => {
+        const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+        if (isFs) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        else { try { Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {}); } catch (err) {} }
+        this.closeSettings();
+      });
+
+      $('btn-again').addEventListener('click', () => {
+        $('win').hidden = true;
+        Confetti.stop();
+        this.newRound();
+      });
+
+      // Kein Kontextmenü bei langem Drücken
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      // Drehen / Größe ändern: Blasen bleiben, nur das Feld passt sich an
+      let t;
+      const onResize = () => { clearTimeout(t); t = setTimeout(() => this.resize(), 120); };
+      window.addEventListener('resize', onResize);
+      window.addEventListener('orientationchange', onResize);
+      document.addEventListener('visibilitychange', () => { this.last = 0; });
+    }
+
+    closeSettings() {
+      $('settings').hidden = true;
+      this.paused = false;
+      this.last = 0;
+    }
+
+    resize() {
+      const r = this.canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const oldW = this.w || r.width;
+      this.w = r.width;
+      this.h = r.height;
+      this.canvas.width = Math.round(r.width * dpr);
+      this.canvas.height = Math.round(r.height * dpr);
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Blasengröße folgt der kleineren Seite, mindestens fingergroß
+      this.base = Math.max(34, Math.min(this.w, this.h) * 0.1);
+      for (const b of this.bubbles) {
+        b.x = Math.min(Math.max(b.r, b.x * (this.w / oldW)), this.w - b.r);
+        b.r = b.size * this.base;
+      }
+    }
+
+    /* ---------- Runde ---------- */
+    newRound() {
+      this.score = 0;
+      this.done = false;
+      this.bubbles = [];
+      this.bits = [];
+      this.spawnIn = 0;
+      Confetti.stop();
+      if (this.mode === 'color') this.target = pick(COLORS);
+      else if (this.mode === 'number') this.target = 1;
+      else this.target = null;
+      // Ein paar Blasen sofort, damit es gleich losgeht
+      for (let i = 0; i < 4; i++) this.spawn(rand(0.35, 1.05) * this.h);
+      this.renderHud(true);
+    }
+
+    renderHud(announce) {
+      const goal = $('goal');
+      const prog = $('progress');
+      goal.className = 'goal';
+      goal.style.background = '';
+      if (this.mode === 'free') {
+        goal.hidden = true;
+        prog.innerHTML = '';
+        return;
+      }
+      goal.hidden = false;
+      if (this.mode === 'color') {
+        const [r, g, b] = this.target.rgb;
+        goal.textContent = '';
+        goal.style.background = `rgb(${r},${g},${b})`;
+        goal.style.width = '1.6em';
+      } else {
+        goal.classList.add('number');
+        goal.textContent = this.target;
+        goal.style.width = '';
+      }
+      prog.innerHTML = '';
+      for (let i = 0; i < ROUND; i++) {
+        const dot = document.createElement('i');
+        if (i < this.score) dot.className = 'on';
+        prog.appendChild(dot);
+      }
+      if (announce) this.announce();
+    }
+
+    announce() {
+      if (this.mode === 'color') Voice.say(`Tipp alle ${COLOR_WORDS[this.target.key]} Blasen!`);
+      else if (this.mode === 'number' && this.target === 1) Voice.say('Tipp die Eins!');
+    }
+
+    pulseGoal() {
+      const g = $('goal');
+      g.classList.remove('pulse');
+      void g.offsetWidth;
+      g.classList.add('pulse');
+    }
+
+    /* ---------- Blasen ---------- */
+    spawn(y) {
+      if (!this.w) return;
+      const size = rand(0.85, 1.4);
+      const r = size * this.base;
+      let color = pick(COLORS);
+      let num = null;
+
+      if (this.mode === 'color') {
+        // Gut die Hälfte der Blasen hat die gesuchte Farbe
+        const hasTarget = this.bubbles.some((b) => b.color === this.target && !b.dead);
+        if (!hasTarget || Math.random() < 0.5) color = this.target;
+        else color = pick(COLORS.filter((c) => c !== this.target));
+      } else if (this.mode === 'number') {
+        // Die gesuchte Zahl ist immer irgendwo zu sehen
+        const hasTarget = this.bubbles.some((b) => b.num === this.target && !b.dead);
+        num = !hasTarget || Math.random() < 0.3 ? this.target : 1 + ((Math.random() * ROUND) | 0);
+      }
+
+      // Nicht direkt auf eine andere Blase setzen
+      let x = rand(r, this.w - r);
+      for (let tries = 0; tries < 6; tries++) {
+        const clash = this.bubbles.some((b) => Math.abs(b.x - x) < (b.r + r) * 0.9 && Math.abs(b.y - (y ?? this.h + r)) < (b.r + r));
+        if (!clash) break;
+        x = rand(r, this.w - r);
+      }
+
+      this.bubbles.push({
+        x,
+        y: y ?? this.h + r,
+        size,
+        r,
+        color,
+        num,
+        vy: rand(38, 62) / Math.sqrt(size),     // kleine Blasen steigen schneller
+        phase: rand(0, Math.PI * 2),
+        sway: rand(10, 24),
+        hue: rand(0, 360),
+        wobble: 0,
+        born: performance.now(),
+        dead: false
+      });
+    }
+
+    tap(e) {
+      if (this.paused || this.done || !$('win').hidden || !$('confirm').hidden) return;
+      Sound.init();
+      const rect = this.canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+
+      // Oberste getroffene Blase, mit etwas Spielraum für kleine Finger
+      let hit = null;
+      let best = Infinity;
+      for (const b of this.bubbles) {
+        if (b.dead) continue;
+        const d = Math.hypot(b.x + this.swayX(b) - px, b.y - py);
+        if (d < b.r * 1.2 + 6 && d / b.r < best) { best = d / b.r; hit = b; }
+      }
+      if (!hit) return;
+
+      if (this.mode === 'free') return this.burst(hit, true);
+
+      const right = this.mode === 'color' ? hit.color === this.target : hit.num === this.target;
+      if (!right) {
+        // Falsche Blase: wackelt nur, nichts geht kaputt
+        hit.wobble = 1;
+        Sound.boing();
+        this.pulseGoal();
+        return;
+      }
+      this.burst(hit, true);
+    }
+
+    burst(b, byTap) {
+      b.dead = true;
+      const x = b.x + this.swayX(b);
+      if (byTap) { Sound.pop(b.size - 0.85); buzz(30); }
+      const [r, g, bl] = b.color.rgb;
+      this.bits.push({ ring: true, x, y: b.y, r: b.r, life: 1, rgb: [r, g, bl] });
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + rand(-0.2, 0.2);
+        const sp = rand(120, 260);
+        this.bits.push({ x: x + Math.cos(a) * b.r * 0.8, y: b.y + Math.sin(a) * b.r * 0.8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, s: rand(2.5, 5), life: 1, rgb: [r, g, bl] });
+      }
+      if (!byTap) return;
+
+      this.score++;
+      if (this.mode === 'free') {
+        if (this.score % FREE_CHEER === 0) {
+          Sound.cheer();
+          Confetti.start(1500);
+          Voice.say(pick(PRAISE));
+        }
+        return;
+      }
+
+      if (this.mode === 'number') {
+        Voice.say(String(this.target));
+        if (this.score < ROUND) this.target++;
+      }
+      this.renderHud(false);
+      if (this.score >= ROUND) this.winRound();
+    }
+
+    winRound() {
+      this.done = true;
+      setTimeout(() => {
+        Sound.win();
+        buzz([60, 60, 120]);
+        Confetti.start();
+        Voice.say(pick(PRAISE));
+        $('win-text').textContent = this.mode === 'number' ? '1 bis 10 geschafft!' : 'Alle gefunden!';
+        $('win').hidden = false;
+      }, 350);
+    }
+
+    swayX(b) { return Math.sin(b.phase) * b.sway; }
+
+    /* ---------- Zeichnen ---------- */
+    frame(now) {
+      requestAnimationFrame((t) => this.frame(t));
+      const dt = this.last ? Math.min(0.05, (now - this.last) / 1000) : 0;
+      this.last = now;
+      if (document.hidden) return;
+      if (!this.paused && $('win').hidden) this.update(dt);
+      this.draw(now);
+    }
+
+    update(dt) {
+      const k = SPEEDS[this.speed];
+      // Nicht zu viele Blasen auf einmal: Platz für Kinderfinger
+      const max = Math.max(5, Math.min(12, Math.round((this.w * this.h) / (this.base * this.base * 9))));
+      this.spawnIn -= dt * k;
+      const alive = this.bubbles.filter((b) => !b.dead).length;
+      if (this.spawnIn <= 0 && alive < max) {
+        this.spawn();
+        this.spawnIn = rand(0.5, 1.1);
+      }
+
+      for (const b of this.bubbles) {
+        b.y -= b.vy * k * dt;
+        b.phase += dt * 1.4;
+        b.hue = (b.hue + dt * 40) % 360;
+        if (b.wobble > 0) b.wobble = Math.max(0, b.wobble - dt * 2.2);
+        // Oben sanft zerplatzen statt einfach zu verschwinden
+        if (!b.dead && b.y < b.r * 0.6) this.burst(b, false);
+      }
+      this.bubbles = this.bubbles.filter((b) => !b.dead);
+
+      for (const p of this.bits) {
+        p.life -= dt * (p.ring ? 3 : 2.2);
+        if (p.ring) { p.r += dt * 120; continue; }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 400 * dt;
+      }
+      this.bits = this.bits.filter((p) => p.life > 0);
+    }
+
+    draw(now) {
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.w, this.h);
+
+      for (const b of this.bubbles) {
+        const x = b.x + this.swayX(b);
+        const grow = Math.max(0.05, Math.min(1, (now - b.born) / 300));
+        // Wackeln: kurzes Quetschen bei falscher Blase
+        const wob = Math.sin(b.wobble * 18) * b.wobble * 0.18;
+        const rx = b.r * grow * (1 + wob);
+        const ry = b.r * grow * (1 - wob);
+        const [r, g, bl] = b.color.rgb;
+
+        ctx.save();
+        ctx.translate(x, b.y);
+
+        // Körper: durchsichtig, Farbe am Rand
+        const body = ctx.createRadialGradient(-rx * 0.25, -ry * 0.25, rx * 0.1, 0, 0, Math.max(rx, ry));
+        body.addColorStop(0, `rgba(255,255,255,0.25)`);
+        body.addColorStop(0.65, `rgba(${r},${g},${bl},0.28)`);
+        body.addColorStop(1, `rgba(${r},${g},${bl},0.75)`);
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Schillernder Rand
+        ctx.lineWidth = Math.max(2, b.r * 0.06);
+        ctx.strokeStyle = `hsla(${b.hue},90%,70%,0.55)`;
+        ctx.stroke();
+        ctx.lineWidth = Math.max(1.5, b.r * 0.035);
+        ctx.strokeStyle = `rgba(${r},${g},${bl},0.9)`;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx * 0.97, ry * 0.97, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Glanzlichter
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.ellipse(-rx * 0.38, -ry * 0.42, rx * 0.2, ry * 0.11, -0.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(rx * 0.42, ry * 0.36, Math.max(2, b.r * 0.06), 0, Math.PI * 2);
+        ctx.fill();
+
+        // Zahl
+        if (b.num != null) {
+          ctx.font = `800 ${Math.round(b.r * 0.95 * grow)}px ui-rounded, system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineWidth = Math.max(3, b.r * 0.1);
+          ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+          ctx.strokeText(b.num, 0, b.r * 0.05);
+          ctx.fillStyle = `rgb(${Math.round(r * 0.7)},${Math.round(g * 0.7)},${Math.round(bl * 0.7)})`;
+          ctx.fillText(b.num, 0, b.r * 0.05);
+        }
+        ctx.restore();
+      }
+
+      // Platz-Effekte
+      for (const p of this.bits) {
+        const [r, g, bl] = p.rgb;
+        if (p.ring) {
+          ctx.strokeStyle = `rgba(${r},${g},${bl},${p.life * 0.7})`;
+          ctx.lineWidth = 3 * p.life + 1;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = `rgba(${r},${g},${bl},${p.life})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.s * p.life + 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  new Game();
+  </script>
+</body>
+</html>
