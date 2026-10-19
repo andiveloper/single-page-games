@@ -109,6 +109,10 @@ body.game {
   text-overflow: ellipsis;
 }
 .topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
 @media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
 
 /* ---------- Knöpfe ---------- */
@@ -130,6 +134,8 @@ body.game {
 }
 .icon-btn:active { transform: scale(0.9); }
 .icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
 
 .big-btn {
   width: 100%;
@@ -200,6 +206,10 @@ body.game {
   -webkit-backdrop-filter: blur(4px);
 }
 .overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
 .dialog {
   width: min(100%, 420px);
   max-height: calc(100dvh - 32px);
@@ -313,7 +323,10 @@ body.game {
     }
     @keyframes pop { 0% { scale: 1; } 40% { scale: 1.18; } 100% { scale: 1; } }
 
-    .choice-grid { grid-template-columns: repeat(4, 1fr); }
+    /* Startbildschirm */
+    #count-grid, #holes-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    #menu .choice-btn { min-height: 104px; font-size: 1.6rem; }
+    #menu .choice-btn svg { width: 44px; height: 44px; }
   </style>
 </head>
 <body class="game u6">
@@ -321,8 +334,10 @@ body.game {
   <header class="topbar">
     <h1>⭐ <span class="title-text">Formen</span><span class="progress" id="progress" aria-hidden="true"></span></h1>
     <div class="actions">
-      <button class="icon-btn" id="btn-new" aria-label="Neue Formen">🔄</button>
-      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen für Eltern">⚙️</button>
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
     </div>
   </header>
 
@@ -331,24 +346,29 @@ body.game {
     <div id="tray" aria-label="Ablage für Formen"></div>
   </main>
 
-  <!-- Einstellungen (für Eltern) -->
-  <div class="overlay" id="settings" hidden>
-    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <h2 id="settings-title">Einstellungen</h2>
-
-      <div class="section-label">Wie viele Formen?</div>
-      <div class="choice-grid" id="count-grid"></div>
-
-      <div class="section-label">Hilfe</div>
-      <button class="big-btn plain" id="btn-colors" aria-pressed="false">🎨 Bunte Löcher</button>
-
-      <div class="section-label">Mehr</div>
-      <div class="row">
-        <button class="big-btn plain" id="btn-fullscreen">⛶ Vollbild</button>
-        <a class="big-btn plain" id="btn-home" href="../">🏠 Alle Spiele</a>
+  <!-- Startbildschirm: 1. Anzahl Formen, 2. Löcher bunt oder dunkel -->
+  <div class="overlay" id="menu">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+      <div id="step-count">
+        <div class="big-emoji">⭐</div>
+        <h2 id="menu-title">Wie viele Formen?</h2>
+        <div class="choice-grid" id="count-grid" style="margin-top:14px"></div>
+        <button class="big-btn plain" id="btn-close-menu" aria-label="Schließen" style="margin-top:20px">✖️</button>
       </div>
-
-      <button class="big-btn" id="btn-close-settings" style="margin-top:20px">Fertig</button>
+      <div id="step-holes" hidden>
+        <h2>Welche Löcher?</h2>
+        <div class="choice-grid" id="holes-grid" style="margin-top:14px">
+          <button class="choice-btn" data-colors="1" aria-label="Bunte Löcher, leichter">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 4A46 46 0 1 1 49.9 4Z" fill="#fb7185" stroke="#ef4444" stroke-width="7" stroke-dasharray="12 8"/></svg>
+            <span>🎨</span>
+          </button>
+          <button class="choice-btn" data-colors="0" aria-label="Dunkle Löcher, schwerer">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 4A46 46 0 1 1 49.9 4Z" fill="#a16207" stroke="#78350f" stroke-width="5"/></svg>
+            <span>🟤</span>
+          </button>
+        </div>
+        <button class="big-btn plain" id="btn-back" aria-label="Zurück" style="margin-top:20px">⬅️</button>
+      </div>
     </div>
   </div>
 
@@ -371,7 +391,10 @@ body.game {
       <div class="big-emoji">🎉🥳</div>
       <h2 id="win-title">Super gemacht!</h2>
       <p>Alle Formen sind drin!</p>
-      <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+      <div class="row">
+        <button class="big-btn plain" id="btn-win-menu" aria-label="Andere Formen">⭐</button>
+        <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+      </div>
     </div>
   </div>
 
@@ -379,6 +402,53 @@ body.game {
 
   <script>
   'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+SPG.render();
+/* SPG-JS:END */
 
   /* ===================================================================
      Töne (Web Audio, keine Dateien nötig)
@@ -393,6 +463,7 @@ body.game {
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
     tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
       const t = this.ctx.currentTime + start;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -611,37 +682,36 @@ body.game {
       this.bindUI();
       this.buildCountButtons();
       this.applyColorHoles();
-      this.newGame();
+      this.openMenu();
     }
 
     /* ---------- Oberfläche ---------- */
     bindUI() {
       $('btn-new').addEventListener('click', () => {
-        if (this.hasProgress()) this.ask(() => this.newGame());
-        else this.newGame();
+        if (this.hasProgress()) this.ask(() => this.openMenu());
+        else this.openMenu();
       });
 
-      $('btn-settings').addEventListener('click', () => this.openSettings());
-      $('btn-close-settings').addEventListener('click', () => this.closeSettings());
-      $('settings').addEventListener('click', (e) => { if (e.target.id === 'settings') this.closeSettings(); });
+      const menu = $('menu');
+      $('btn-close-menu').addEventListener('click', () => this.closeMenu());
+      menu.addEventListener('click', (e) => { if (e.target === menu) this.closeMenu(); });
+      $('btn-back').addEventListener('click', () => { Sound.pick(); this.showStep('count'); });
 
-      $('btn-colors').addEventListener('click', () => {
-        this.colorHoles = !this.colorHoles;
-        Store.set('colors', this.colorHoles);
-        this.applyColorHoles();
-      });
+      for (const b of document.querySelectorAll('#holes-grid .choice-btn')) {
+        b.addEventListener('click', () => {
+          Sound.pick();
+          this.colorHoles = b.dataset.colors === '1';
+          Store.set('colors', this.colorHoles);
+          this.applyColorHoles();
+          $('menu').hidden = true;
+          this.newGame();
+        });
+      }
 
-      // Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein
-      if (location.protocol === 'file:') $('btn-home').hidden = true;
-
-      const fsBtn = $('btn-fullscreen');
-      const root = document.documentElement;
-      if (!root.requestFullscreen && !root.webkitRequestFullscreen) fsBtn.style.display = 'none';
-      fsBtn.addEventListener('click', () => {
-        const isFs = document.fullscreenElement || document.webkitFullscreenElement;
-        if (isFs) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-        else { try { Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {}); } catch (err) {} }
-        this.closeSettings();
+      $('btn-win-menu').addEventListener('click', () => {
+        $('win').hidden = true;
+        Confetti.stop();
+        this.openMenu();
       });
 
       $('btn-again').addEventListener('click', () => {
@@ -663,35 +733,48 @@ body.game {
     buildCountButtons() {
       const grid = $('count-grid');
       grid.innerHTML = '';
-      const icons = ['🔴', '🟦', '🔺', '⭐', '💜', '🌙', '⬢', '🔷'];
       for (const n of COUNTS) {
         const b = document.createElement('button');
         b.className = 'choice-btn';
         b.dataset.count = n;
         b.setAttribute('aria-label', `${n} Formen`);
-        b.innerHTML = `<span aria-hidden="true" style="font-size:1rem;letter-spacing:-2px">${icons.slice(0, Math.min(n, 3)).join('')}</span><span>${n}</span>`;
+        // Vorschau: so viele kleine Formen, wie es geben wird
+        const icons = SHAPES.slice(0, n).map((sh, i) => `<svg viewBox="0 0 100 100" style="width:18px;height:18px"><path d="${sh.d}" fill="${COLORS[i]}"/></svg>`).join('');
+        b.innerHTML = `<span aria-hidden="true" style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:84px">${icons}</span><span>${n}</span>`;
         grid.appendChild(b);
         b.addEventListener('click', () => {
+          Sound.pick();
           this.count = n;
           Store.set('count', n);
-          this.closeSettings();
-          this.newGame();
+          this.showStep('holes');
         });
       }
     }
 
     applyColorHoles() {
       this.board.classList.toggle('color-holes', this.colorHoles);
-      $('btn-colors').classList.toggle('success', this.colorHoles);
-      $('btn-colors').classList.toggle('plain', !this.colorHoles);
-      $('btn-colors').setAttribute('aria-pressed', String(this.colorHoles));
     }
 
-    openSettings() {
-      for (const b of document.querySelectorAll('.choice-btn')) b.classList.toggle('selected', Number(b.dataset.count) === this.count);
-      $('settings').hidden = false;
+    /* ---------- Startbildschirm ---------- */
+    openMenu() {
+      this.showStep('count');
+      $('btn-close-menu').hidden = !this.items.length;   // ohne laufendes Spiel gibt es nichts zum Zurückkehren
+      $('menu').hidden = false;
     }
-    closeSettings() { $('settings').hidden = true; }
+
+    closeMenu() {
+      if (!this.items.length) return;
+      $('menu').hidden = true;
+    }
+
+    showStep(step) {
+      $('step-count').hidden = step !== 'count';
+      $('step-holes').hidden = step !== 'holes';
+      const sel = step === 'count' ? '#count-grid .choice-btn' : '#holes-grid .choice-btn';
+      for (const b of document.querySelectorAll(sel)) {
+        b.classList.toggle('selected', step === 'count' ? Number(b.dataset.count) === this.count : (b.dataset.colors === '1') === this.colorHoles);
+      }
+    }
 
     ask(onYes) {
       const dlg = $('confirm');
