@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e0e7ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Labyrinth-Fresser 👾</title>
+  <style>
+/* SPG-DESIGN:BEGIN */
+/* Single-Page Games: gemeinsame Designsprache v1
+   Quelle: design/spg.css. Nicht in den Spielen von Hand ändern,
+   sondern hier ändern und `node tools/design.mjs --write` ausführen. */
+:root {
+  --font: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-2: rgba(255, 255, 255, 0.88);
+  --line: #e2e8f0;
+  --success: #22c55e;
+  --success-2: #34d399;
+  --danger: #ef4444;
+  --radius: 24px;
+  --radius-sm: 18px;
+  --tap: 56px;           /* Mindestgröße für Tasten (Kinderfinger) */
+  --big: 64px;           /* Höhe großer Knöpfe */
+  --gap: 12px;
+  --fs-title: clamp(1.25rem, 5vw, 1.8rem);
+  --fs-text: 1.05rem;
+}
+@media (max-width: 360px) { :root { --tap: 50px; --big: 58px; --gap: 8px; } }
+@media (min-width: 700px) and (min-height: 700px) { :root { --tap: 68px; --big: 72px; --gap: 16px; } }
+
+/* Kategorie-Farben: .u6 = bis 6 Jahre (warm), .ue6 = ab 6 / Erwachsene (kühl).
+   Auf <body> setzen; funktioniert auch auf einzelnen Karten. */
+:root, .u6 {
+  --primary: #f97316;
+  --primary-2: #f59e0b;
+  --primary-ink: #c2410c;
+  --primary-soft: #fff7ed;
+  --primary-line: #fed7aa;
+  --bg: linear-gradient(180deg, #fef3c7 0%, #ffedd5 45%, #ffe4e6 100%);
+  --shadow: 0 4px 14px rgba(194, 65, 12, 0.12);
+}
+.ue6 {
+  --primary: #6366f1;
+  --primary-2: #8b5cf6;
+  --primary-ink: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-line: #c7d2fe;
+  --bg: linear-gradient(180deg, #e0e7ff 0%, #ede9fe 50%, #fae8ff 100%);
+  --shadow: 0 4px 14px rgba(67, 56, 202, 0.14);
+}
+
+/* ---------- Grundlage ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-text);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button { font: inherit; color: inherit; touch-action: manipulation; }
+[hidden] { display: none !important; }
+
+/* Vollbild-Spielseite: kein Scrollen, Zoomen, Markieren oder Pull-to-Refresh */
+html:has(> body.game) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.game {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- Kopfleiste ---------- */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 8px 8px 0;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.topbar h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+@media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
+
+/* ---------- Knöpfe ---------- */
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-line), 0 2px 4px rgba(0, 0, 0, 0.08);
+  font-size: calc(var(--tap) * 0.48);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.1s, background 0.2s;
+}
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
+
+.big-btn {
+  width: 100%;
+  min-height: var(--big);
+  padding: 0 18px;
+  border: none;
+  border-radius: 20px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.1s;
+}
+.big-btn:active { transform: scale(0.96); }
+.big-btn.success { background: linear-gradient(90deg, var(--success-2), var(--success)); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
+.big-btn.plain { background: #f1f5f9; color: var(--ink); box-shadow: none; }
+.big-btn.soft { background: var(--primary-soft); color: var(--primary-ink); box-shadow: inset 0 0 0 2px var(--primary-line); }
+
+.row { display: flex; gap: var(--gap); }
+.row > * { flex: 1; }
+.stack { display: grid; gap: var(--gap); }
+
+/* Auswahl-Kacheln (Anzahl, Schwierigkeit, Farbe ...) */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+.choice-btn {
+  min-height: 84px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.choice-btn.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+
+/* ---------- Karten, Texte ---------- */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted { color: var(--muted); }
+.section-label { text-align: left; font-weight: 700; color: var(--muted); margin: 20px 0 8px; font-size: 0.95rem; }
+
+/* ---------- Dialoge ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
+.dialog {
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: spg-pop-in 0.25s ease-out;
+}
+.dialog h2 { margin: 0 0 6px; font-size: 1.6rem; }
+.dialog p { margin: 0 0 18px; color: var(--muted); font-weight: 500; }
+.big-emoji { font-size: 56px; line-height: 1.1; margin-bottom: 6px; }
+@keyframes spg-pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ---------- Hinweise, Konfetti ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 3000;
+  background: #1e293b;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 600;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+.toast[hidden] { display: none; }
+.confetti { position: fixed; inset: 0; z-index: 1500; pointer-events: none; }
+.confetti[hidden] { display: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* SPG-DESIGN:END */
+
+    /* ---------- Labyrinth-Fresser ---------- */
+    .topbar h1 { display: flex; align-items: center; gap: 12px; }
+    .topbar h1 .best { font-size: 0.75em; color: var(--muted); }
+    /* Handy: fünf Knöpfe oben, Rekord steht im Start- und Endbildschirm */
+    @media (max-width: 460px) { .topbar h1 .logo, .topbar h1 .best { display: none; } }
+
+    #stage {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--gap);
+      padding: var(--gap);
+    }
+    #board-wrap { flex: 1 1 auto; min-height: 0; align-self: stretch; display: grid; place-items: center; }
+    #board {
+      display: block;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 3px solid var(--primary-line);
+      box-shadow: var(--shadow);
+    }
+
+    /* Steuerkreuz (zusätzlich zum Wischen), eng zusammen für einen Daumen */
+    #pad {
+      flex: none;
+      display: grid;
+      grid-template-columns: repeat(3, var(--tap));
+      grid-template-rows: repeat(3, var(--tap));
+      gap: 2px;
+    }
+    #pad .icon-btn { width: var(--tap); height: var(--tap); font-size: calc(var(--tap) * 0.46); }
+    #pad [data-dir="up"] { grid-area: 1 / 2; }
+    #pad [data-dir="left"] { grid-area: 2 / 1; }
+    #pad [data-dir="right"] { grid-area: 2 / 3; }
+    #pad [data-dir="down"] { grid-area: 3 / 2; }
+    #pad .hub { grid-area: 2 / 2; display: grid; place-items: center; font-size: calc(var(--big) * 0.42); opacity: 0.5; }
+    #pad .icon-btn.hit { background: var(--primary-line); }
+    body.no-pad #pad { display: none; }
+
+    /* Rechtshänder: Steuerkreuz rechts, Pause links daneben, Leben ganz links; Linkshänder gespiegelt */
+    .controls { flex: none; display: flex; align-items: center; gap: 14px; align-self: stretch; }
+    body.pad-left .controls { flex-direction: row-reverse; }
+    .pause-btn { width: 76px; height: 76px; font-size: 36px; border-radius: 22px; }
+    .pause-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+    .stats { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-weight: 800; }
+    body.pad-left .stats { align-items: flex-end; }
+    .stats .lives { font-size: 1.5rem; letter-spacing: 2px; line-height: 1; }
+    .stats .level { font-size: 1.05rem; color: var(--primary-ink); }
+
+    /* Querformat: Steuerung neben dem Spielfeld */
+    @media (orientation: landscape) {
+      #stage { flex-direction: row; }
+      .controls, body.pad-left .controls { flex-direction: column; align-self: center; }
+      .stats, body.pad-left .stats { flex: none; align-items: center; }
+      body.pad-left #stage { flex-direction: row-reverse; }
+      #board-wrap { align-self: stretch; }
+    }
+    /* Wenig Platz (Handy quer): kleineres Steuerkreuz */
+    @media (max-height: 480px) {
+      #pad { grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); }
+      #pad .icon-btn { width: 48px; height: 48px; }
+      .pause-btn { width: 60px; height: 60px; font-size: 28px; }
+    }
+
+    .choice-grid { grid-template-columns: repeat(3, 1fr); }
+    .choice-btn { min-height: 76px; gap: 2px; }
+    .choice-btn span { font-size: 1.7rem; line-height: 1; }
+    .choice-btn small { font-size: 0.9rem; font-weight: 700; }
+    .dialog .score-line { font-size: 1.3rem; color: var(--ink); font-weight: 700; }
+  </style>
+</head>
+<body class="game ue6">
+  <header class="topbar">
+    <h1><span class="logo">👾</span> <span id="score" aria-label="Punkte">0</span> <span class="best" aria-label="Rekord">🏆 <span id="best">0</span></span></h1>
+    <div class="actions">
+      <button class="icon-btn" id="btn-pause" aria-label="Pause">⏸️</button>
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <div id="board-wrap"><canvas id="board" aria-label="Spielfeld"></canvas></div>
+    <div class="controls">
+      <div class="stats">
+        <div class="lives" id="lives" aria-label="Leben">❤️❤️❤️</div>
+        <div class="level">Stufe <span id="level">1</span></div>
+      </div>
+      <button class="icon-btn pause-btn" id="btn-pause-big" aria-label="Pause">⏸️</button>
+      <div id="pad" aria-label="Steuerkreuz">
+        <button class="icon-btn" data-dir="up" aria-label="Hoch">⬆️</button>
+        <button class="icon-btn" data-dir="left" aria-label="Links">⬅️</button>
+        <div class="hub" aria-hidden="true">😋</div>
+        <button class="icon-btn" data-dir="right" aria-label="Rechts">➡️</button>
+        <button class="icon-btn" data-dir="down" aria-label="Runter">⬇️</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Start / Einstellungen -->
+  <div class="overlay" id="setup" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+      <div class="big-emoji">😋👾</div>
+      <h2 id="setup-title">Labyrinth-Fresser</h2>
+      <p>Alle Punkte fressen! ⭐ macht die Monster essbar.</p>
+      <div class="section-label">Tempo</div>
+      <div class="choice-grid" id="speed-grid">
+        <button class="choice-btn" data-speed="slow"><span>🐢</span><small>Langsam</small></button>
+        <button class="choice-btn" data-speed="mid"><span>🐇</span><small>Mittel</small></button>
+        <button class="choice-btn" data-speed="fast"><span>🚀</span><small>Schnell</small></button>
+      </div>
+      <div class="section-label">Monster</div>
+      <div class="choice-grid" id="foes-grid">
+        <button class="choice-btn" data-foes="2"><span>👾</span><small>2</small></button>
+        <button class="choice-btn" data-foes="3"><span>👾</span><small>3</small></button>
+        <button class="choice-btn" data-foes="4"><span>👾</span><small>4</small></button>
+      </div>
+      <div class="section-label">Tasten</div>
+      <div class="choice-grid" id="pad-grid">
+        <button class="choice-btn" data-pad="left"><span>🫲</span><small>Links</small></button>
+        <button class="choice-btn" data-pad="right"><span>🫱</span><small>Rechts</small></button>
+        <button class="choice-btn" data-pad="off"><span>👆</span><small>Nur wischen</small></button>
+      </div>
+      <button class="big-btn" id="btn-go" style="margin-top:20px">▶️ Los</button>
+    </div>
+  </div>
+
+  <!-- Rückfrage bei Neustart -->
+  <div class="overlay" id="confirm" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="big-emoji">🔄</div>
+      <h2 id="confirm-title">Neu anfangen?</h2>
+      <p>Die Punkte gehen verloren.</p>
+      <div class="row">
+        <button class="big-btn plain" id="confirm-no" aria-label="Nein">✖️</button>
+        <button class="big-btn success" id="confirm-yes" aria-label="Ja">✔️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vorbei -->
+  <div class="overlay" id="over" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="over-title">
+      <div class="big-emoji" id="over-emoji">👾</div>
+      <h2 id="over-title">Vorbei!</h2>
+      <p class="score-line" id="over-text"></p>
+      <button class="big-btn" id="btn-again">🔄 Nochmal</button>
+    </div>
+  </div>
+
+  <canvas id="confetti" class="confetti" hidden></canvas>
+
+  <script>
+  'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+SPG.render();
+/* SPG-JS:END */
+
+  const $ = (id) => document.getElementById(id);
+
+  /* ===================================================================
+     Speichern (Rekorde, Einstellungen)
+     =================================================================== */
+  const Store = {
+    get(key, fallback) {
+      try { const v = localStorage.getItem('spg-labyrinth-' + key); return v === null ? fallback : JSON.parse(v); }
+      catch (e) { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem('spg-labyrinth-' + key, JSON.stringify(value)); } catch (e) {}
+    }
+  };
+
+  /* ===================================================================
+     Töne (Web Audio, keine Dateien nötig)
+     =================================================================== */
+  const Sound = {
+    ctx: null,
+    flip: false,
+    init() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
+      const t = this.ctx.currentTime + start;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+    ready() { this.init(); return !!this.ctx; },
+    click() { if (this.ready()) this.tone(500, 0, 0.06, 'sine', 0.12, 650); },
+    dot() {
+      if (!this.ready()) return;
+      this.flip = !this.flip;
+      this.tone(this.flip ? 420 : 560, 0, 0.07, 'triangle', 0.09, this.flip ? 560 : 420);
+    },
+    star() { if (this.ready()) [330, 440, 554, 660].forEach((f, i) => this.tone(f, i * 0.05, 0.16, 'square', 0.07)); },
+    gobble() { if (this.ready()) { this.tone(900, 0, 0.18, 'sawtooth', 0.08, 300); this.tone(1200, 0.12, 0.15, 'sine', 0.18, 1600); } },
+    fruit() { if (this.ready()) { this.tone(660, 0, 0.1, 'sine', 0.22, 990); this.tone(990, 0.08, 0.16, 'sine', 0.22, 1320); } },
+    die() { if (this.ready()) { this.tone(600, 0, 0.9, 'triangle', 0.22, 80); this.tone(300, 0.1, 0.8, 'square', 0.06, 50); } },
+    win() {
+      if (!this.ready()) return;
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
+    }
+  };
+
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  /* ===================================================================
+     Konfetti
+     =================================================================== */
+  const Confetti = {
+    canvas: $('confetti'),
+    raf: null,
+    parts: [],
+    start() {
+      const c = this.canvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      c.style.width = innerWidth + 'px';
+      c.style.height = innerHeight + 'px';
+      c.hidden = false;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const n = Math.round(Math.min(160, innerWidth / 5));
+      this.parts = Array.from({ length: n }, () => ({
+        x: Math.random() * innerWidth,
+        y: -Math.random() * innerHeight,
+        s: Math.random() * 10 + 6,
+        c: colors[(Math.random() * colors.length) | 0],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2.5,
+        r: Math.random() * 360,
+        vr: (Math.random() - 0.5) * 10
+      }));
+      const end = performance.now() + 3500;
+      const loop = (now) => {
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of this.parts) {
+          p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.y > innerHeight + 20 && now < end) p.y = -20;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.r * Math.PI / 180);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+          ctx.restore();
+        }
+        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
+        else this.stop();
+      };
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      cancelAnimationFrame(this.raf);
+      this.canvas.hidden = true;
+    }
+  };
+
+  /* ===================================================================
+     Labyrinth (zufällig, spiegelsymmetrisch, ohne Sackgassen)
+     =================================================================== */
+  const W = 15, H = 21;                 // Kacheln; Räume liegen auf ungeraden Koordinaten
+  const HOME = { x: 7, y: 9 };          // Start der Monster
+  const START = { x: 7, y: 19 };        // Start der Spielfigur
+  const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const DIR_LIST = ['up', 'left', 'down', 'right'];
+  const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
+
+  function makeMaze() {
+    // true = Wand
+    const g = Array.from({ length: H }, () => new Array(W).fill(true));
+    const open = (x, y) => { g[y][x] = false; g[y][W - 1 - x] = false; };
+    const isRoom = (x, y) => x > 0 && y > 0 && x < W - 1 && y < H - 1 && (x & 1) && (y & 1);
+    // Tiefensuche über die linke Hälfte inkl. Mittelspalte, rechts wird gespiegelt
+    const half = (x) => x <= (W - 1) / 2;
+    const seen = new Set();
+    const stack = [[1, 1]];
+    seen.add('1,1'); open(1, 1);
+    while (stack.length) {
+      const [x, y] = stack[stack.length - 1];
+      const next = shuffle(DIR_LIST.map((d) => DIRS[d]))
+        .map(([dx, dy]) => [x + dx * 2, y + dy * 2, dx, dy])
+        .filter(([nx, ny]) => isRoom(nx, ny) && half(nx) && !seen.has(nx + ',' + ny));
+      if (!next.length) { stack.pop(); continue; }
+      const [nx, ny, dx, dy] = next[0];
+      open(x + dx, y + dy); open(nx, ny);
+      seen.add(nx + ',' + ny);
+      stack.push([nx, ny]);
+    }
+    // Sackgassen auflösen, damit man immer ausweichen kann
+    const exits = (x, y) => DIR_LIST.filter((d) => !g[y + DIRS[d][1]][x + DIRS[d][0]]).length;
+    for (let y = 1; y < H - 1; y += 2) {
+      for (let x = 1; half(x); x += 2) {
+        if (exits(x, y) > 1) continue;
+        const walls = shuffle(DIR_LIST.filter((d) => {
+          const [dx, dy] = DIRS[d];
+          return g[y + dy][x + dx] && isRoom(x + dx * 2, y + dy * 2);
+        }));
+        // Lieber zu einer anderen Sackgasse durchbrechen
+        walls.sort((a, b) => exits(x + DIRS[a][0] * 2, y + DIRS[a][1] * 2) - exits(x + DIRS[b][0] * 2, y + DIRS[b][1] * 2));
+        if (walls.length) open(x + DIRS[walls[0]][0], y + DIRS[walls[0]][1]);
+      }
+    }
+    // Ein paar zusätzliche Durchgänge für mehr Rundwege
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; half(x); x++) {
+        if ((x & 1) === (y & 1)) continue;             // nur Wände zwischen zwei Räumen
+        if (g[y][x] && Math.random() < 0.12) open(x, y);
+      }
+    }
+    // Rund um den Monster-Start frei
+    for (const [dx, dy] of [[-1, 0], [1, 0]]) open(HOME.x + dx, HOME.y + dy);
+    return g;
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  /* ===================================================================
+     Spiel
+     =================================================================== */
+  const SPEEDS = { slow: 4.2, mid: 5.6, fast: 7.2 };   // Kacheln pro Sekunde
+  const FOES = [
+    { emoji: '👾', chase: 'hunt' },     // jagt direkt
+    { emoji: '🐙', chase: 'ahead' },    // läuft vor die Figur
+    { emoji: '🤖', chase: 'shy' },      // kommt nah und dreht dann ab
+    { emoji: '🦇', chase: 'wander' }    // flattert herum
+  ];
+  const CORNERS = [{ x: 13, y: 1 }, { x: 1, y: 1 }, { x: 13, y: 19 }, { x: 1, y: 19 }];
+  const FRUITS = ['🍒', '🍓', '🍉', '🍇', '🍍', '🥝'];
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EMOJI_FONT = 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+
+  const Game = {
+    canvas: $('board'),
+    ctx: $('board').getContext('2d'),
+    wallLayer: document.createElement('canvas'),
+    cell: 20,
+    // 'ready' wartet auf erste Richtung, 'run', 'paused', 'dying', 'clear', 'over'
+    state: 'ready',
+    speed: Store.get('speed', 'mid'),
+    foes: Store.get('foes', 3),
+    pad: Store.get('pad', 'right'),       // left | right | off
+    maze: null,
+    dots: null,                           // 0 leer, 1 Punkt, 2 Stern
+    dotsLeft: 0,
+    dotsTotal: 0,
+    player: null,
+    ghosts: [],
+    want: null,
+    score: 0,
+    best: 0,
+    key: '',
+    lives: 3,
+    level: 1,
+    fright: 0,                            // Sekunden, in denen Monster essbar sind
+    chain: 0,                             // gefressene Monster pro Stern
+    modeClock: 0,
+    fruit: null,
+    popups: [],
+    timer: 0,                             // Wartezeit für 'dying' und 'clear'
+    last: 0,
+
+    init() {
+      this.bindUi();
+      this.bindInput();
+      new ResizeObserver(() => this.layout()).observe($('board-wrap'));
+      this.applyPad();
+      this.newGame();
+      this.openSetup();
+      requestAnimationFrame((t) => this.frame(t));
+    },
+
+    /* ---------- Spielzustand ---------- */
+    newGame() {
+      this.score = 0;
+      this.lives = 3;
+      this.level = 1;
+      this.key = this.speed + '-' + this.foes;
+      this.best = Store.get('best-' + this.key, 0);
+      this.newLevel();
+    },
+    newLevel() {
+      this.maze = makeMaze();
+      this.dots = this.maze.map((row) => row.map((wall) => (wall ? 0 : 1)));
+      for (const c of CORNERS) this.dots[c.y][c.x] = 2;
+      this.dots[START.y][START.x] = 0;
+      this.dots[HOME.y][HOME.x] = 0;
+      this.dotsTotal = this.dotsLeft = this.dots.flat().filter(Boolean).length;
+      this.fruit = null;
+      this.renderWalls();
+      this.resetActors();
+    },
+    resetActors() {
+      this.player = { x: START.x, y: START.y, dir: 'left', t: 0, moving: false, mouth: 0 };
+      this.want = null;
+      this.fright = 0;
+      this.chain = 0;
+      this.modeClock = 0;
+      this.popups = [];
+      this.ghosts = FOES.slice(0, this.foes).map((f, i) => ({
+        ...f, i, x: HOME.x, y: HOME.y, dir: i & 1 ? 'right' : 'left', t: 0,
+        wait: 1.2 + i * 2.8,          // gestaffelter Start
+        eyes: false, scared: false
+      }));
+      this.state = 'ready';
+      this.updateHud();
+    },
+    inProgress() { return ['run', 'paused', 'dying', 'clear', 'ready'].includes(this.state) && this.score > 0; },
+    wall(x, y) { return x < 0 || y < 0 || x >= W || y >= H || this.maze[y][x]; },
+    canGo(e, d) { const [dx, dy] = DIRS[d]; return !this.wall(e.x + dx, e.y + dy); },
+    playerSpeed() { return SPEEDS[this.speed] * (1 + Math.min(this.level - 1, 6) * 0.03); },
+    ghostSpeed(g) {
+      const base = SPEEDS[this.speed];
+      if (g.eyes) return base * 2;
+      if (g.scared) return base * 0.5;
+      return base * Math.min(0.97, 0.82 + (this.level - 1) * 0.04);
+    },
+    frightTime() { return Math.max(2.5, 7.5 - (this.level - 1) * 0.8); },
+
+    steer(d) {
+      if (this.state === 'over' || this.state === 'dying' || this.state === 'clear') return;
+      if (document.querySelector('.overlay:not([hidden])')) return;
+      this.want = d;
+      if (this.state === 'ready' || this.state === 'paused') this.resume();
+    },
+    resume() {
+      Sound.init();
+      this.state = 'run';
+      this.updateHud();
+    },
+    pause() {
+      if (this.state !== 'run') return;
+      this.state = 'paused';
+      this.updateHud();
+    },
+
+    /* ---------- Bewegung ---------- */
+    update(dt) {
+      if (this.fright > 0) {
+        this.fright = Math.max(0, this.fright - dt);
+        if (!this.fright) for (const g of this.ghosts) g.scared = false;
+      } else {
+        this.modeClock += dt;
+      }
+      this.movePlayer(dt);
+      for (const g of this.ghosts) this.moveGhost(g, dt);
+      this.checkHits();
+      if (this.fruit && (this.fruit.left -= dt) <= 0) this.fruit = null;
+      for (const p of this.popups) p.age += dt;
+      this.popups = this.popups.filter((p) => p.age < 1);
+    },
+    movePlayer(dt) {
+      const p = this.player;
+      // Umdrehen geht sofort, auch zwischen zwei Kacheln
+      if (this.want && p.moving && this.want === OPPOSITE[p.dir]) {
+        const [dx, dy] = DIRS[p.dir];
+        p.x += dx; p.y += dy; p.t = 1 - p.t; p.dir = this.want;
+      }
+      if (!p.moving) {
+        if (this.want && this.canGo(p, this.want)) { p.dir = this.want; p.moving = true; }
+        else if (this.canGo(p, p.dir) && this.want) p.moving = true;
+        if (!p.moving) return;
+      }
+      p.t += this.playerSpeed() * dt;
+      p.mouth += dt * 12;
+      while (p.t >= 1) {
+        const [dx, dy] = DIRS[p.dir];
+        p.x += dx; p.y += dy; p.t -= 1;
+        this.eatAt(p.x, p.y);
+        if (this.state !== 'run') return;
+        if (this.want && this.want !== p.dir && this.canGo(p, this.want)) p.dir = this.want;
+        if (!this.canGo(p, p.dir)) { p.t = 0; p.moving = false; break; }
+      }
+    },
+    moveGhost(g, dt) {
+      if (g.wait > 0) { g.wait -= dt; return; }
+      g.t += this.ghostSpeed(g) * dt;
+      while (g.t >= 1) {
+        const [dx, dy] = DIRS[g.dir];
+        g.x += dx; g.y += dy; g.t -= 1;
+        if (g.eyes && g.x === HOME.x && g.y === HOME.y) { g.eyes = false; g.scared = false; }
+        g.dir = this.chooseDir(g);
+      }
+      if (!this.canGo(g, g.dir)) { g.dir = this.chooseDir(g); g.t = 0; }
+    },
+    chooseDir(g) {
+      let opts = DIR_LIST.filter((d) => d !== OPPOSITE[g.dir] && this.canGo(g, d));
+      if (!opts.length) opts = DIR_LIST.filter((d) => this.canGo(g, d));
+      if (opts.length === 1) return opts[0];
+      if (g.scared && !g.eyes) return opts[(Math.random() * opts.length) | 0];
+      const target = this.targetOf(g);
+      // Auf höheren Stufen klüger, aber nie perfekt
+      const smart = g.eyes ? 1 : Math.min(0.9, (g.chase === 'wander' ? 0.35 : 0.6) + (this.level - 1) * 0.06);
+      if (!target || Math.random() > smart) return opts[(Math.random() * opts.length) | 0];
+      const dist = this.distances(target);
+      let best = opts[0], bestD = Infinity;
+      for (const d of opts) {
+        const v = dist[(g.y + DIRS[d][1]) * W + g.x + DIRS[d][0]];
+        if (v < bestD) { bestD = v; best = d; }
+      }
+      return best;
+    },
+    targetOf(g) {
+      if (g.eyes) return HOME;
+      const p = this.player;
+      // Alle 20 Sekunden kurz in die eigene Ecke, damit man durchatmen kann
+      if (this.modeClock % 20 > 15) return CORNERS[g.i];
+      if (g.chase === 'ahead') {
+        const [dx, dy] = DIRS[p.dir];
+        for (let k = 4; k > 0; k--) {
+          const x = p.x + dx * k, y = p.y + dy * k;
+          if (!this.wall(x, y)) return { x, y };
+        }
+      }
+      if (g.chase === 'shy' && Math.abs(g.x - p.x) + Math.abs(g.y - p.y) < 6) return CORNERS[g.i];
+      if (g.chase === 'wander') return null;
+      return p;
+    },
+    // Wegelänge zu einem Ziel (Breitensuche), für Monster, die gezielt laufen
+    distances(target) {
+      const dist = new Array(W * H).fill(Infinity);
+      const q = [target.y * W + target.x];
+      dist[q[0]] = 0;
+      for (let k = 0; k < q.length; k++) {
+        const i = q[k], x = i % W, y = (i / W) | 0;
+        for (const d of DIR_LIST) {
+          const nx = x + DIRS[d][0], ny = y + DIRS[d][1];
+          if (this.wall(nx, ny)) continue;
+          const j = ny * W + nx;
+          if (dist[j] === Infinity) { dist[j] = dist[i] + 1; q.push(j); }
+        }
+      }
+      return dist;
+    },
+    pos(e) {
+      const [dx, dy] = e.moving === false ? [0, 0] : DIRS[e.dir];
+      return { x: e.x + dx * e.t, y: e.y + dy * e.t };
+    },
+
+    /* ---------- Fressen ---------- */
+    eatAt(x, y) {
+      const v = this.dots[y][x];
+      if (v) {
+        this.dots[y][x] = 0;
+        this.dotsLeft--;
+        if (v === 2) {
+          this.addScore(50);
+          this.fright = this.frightTime();
+          this.chain = 0;
+          for (const g of this.ghosts) {
+            if (g.eyes) continue;
+            g.scared = true;
+            // Erschrocken: sofort umdrehen
+            if (g.wait <= 0 && g.t > 0) { g.x += DIRS[g.dir][0]; g.y += DIRS[g.dir][1]; g.t = 1 - g.t; g.dir = OPPOSITE[g.dir]; }
+            else if (g.wait <= 0 && this.canGo(g, OPPOSITE[g.dir])) g.dir = OPPOSITE[g.dir];
+          }
+          Sound.star();
+          buzz(30);
+        } else {
+          this.addScore(10);
+          Sound.dot();
+        }
+        // Obst erscheint, wenn ein Drittel bzw. zwei Drittel gefressen sind
+        const eaten = this.dotsTotal - this.dotsLeft;
+        if (!this.fruit && (eaten === Math.round(this.dotsTotal / 3) || eaten === Math.round(this.dotsTotal * 2 / 3))) {
+          this.fruit = { x: HOME.x, y: HOME.y + 2, emoji: FRUITS[(this.level - 1) % FRUITS.length], left: 9 };
+        }
+        if (!this.dotsLeft) this.levelClear();
+      }
+      if (this.fruit && this.fruit.x === x && this.fruit.y === y) {
+        const pts = 100 * Math.min(this.level, 8);
+        this.addScore(pts);
+        this.popups.push({ x, y, text: pts, age: 0 });
+        this.fruit = null;
+        Sound.fruit();
+        buzz(30);
+      }
+    },
+    checkHits() {
+      if (this.state !== 'run') return;
+      const p = this.pos(this.player);
+      for (const g of this.ghosts) {
+        if (g.wait > 0 || g.eyes) continue;
+        const q = this.pos(g);
+        if (Math.abs(p.x - q.x) + Math.abs(p.y - q.y) > 0.7) continue;
+        if (g.scared) {
+          this.chain++;
+          const pts = 200 * 2 ** (this.chain - 1);
+          this.addScore(pts);
+          this.popups.push({ x: q.x, y: q.y, text: pts, age: 0 });
+          g.eyes = true;
+          g.scared = false;
+          Sound.gobble();
+          buzz(40);
+        } else {
+          return this.die();
+        }
+      }
+    },
+    addScore(n) {
+      this.score += n;
+      this.updateHud();
+    },
+    die() {
+      this.state = 'dying';
+      this.timer = 1.4;
+      this.lives--;
+      this.updateHud();
+      Sound.die();
+      buzz([80, 40, 160]);
+    },
+    levelClear() {
+      this.state = 'clear';
+      this.timer = 2;
+      Sound.win();
+      buzz([60, 60, 120]);
+      if (!reducedMotion) Confetti.start();
+    },
+    afterPause() {
+      // nach Treffer bzw. geschaffter Stufe
+      if (this.state === 'dying') {
+        if (this.lives > 0) this.resetActors();
+        else this.gameOver();
+      } else if (this.state === 'clear') {
+        this.level++;
+        this.newLevel();
+      }
+    },
+    gameOver() {
+      this.state = 'over';
+      const record = this.score > this.best;
+      if (record) { this.best = this.score; Store.set('best-' + this.key, this.best); }
+      this.updateHud();
+      if (record) { Sound.win(); Confetti.start(); }
+      $('over-emoji').textContent = record ? '🏆🎉' : '👾';
+      $('over-title').textContent = record ? 'Neuer Rekord!' : 'Vorbei!';
+      $('over-text').textContent = `⭐ ${this.score}   ·   🏆 ${this.best}   ·   Stufe ${this.level}`;
+      setTimeout(() => { if (this.state === 'over') $('over').hidden = false; }, 400);
+    },
+    updateHud() {
+      $('score').textContent = this.score;
+      $('best').textContent = Math.max(this.best, this.score);
+      $('lives').textContent = this.lives > 0 ? '❤️'.repeat(this.lives) : '🖤';
+      $('lives').setAttribute('aria-label', this.lives + ' Leben');
+      $('level').textContent = this.level;
+      for (const btn of [$('btn-pause'), $('btn-pause-big')]) {
+        btn.textContent = this.state === 'paused' ? '▶️' : '⏸️';
+        btn.setAttribute('aria-label', this.state === 'paused' ? 'Weiter' : 'Pause');
+        btn.classList.toggle('active', this.state === 'paused');
+      }
+    },
+
+    /* ---------- Schleife ---------- */
+    frame(now) {
+      const dt = Math.min(now - (this.last || now), 100) / 1000;
+      this.last = now;
+      if (this.state === 'run') {
+        // in kleinen Schritten, damit sich nichts durchtunnelt
+        let rest = dt;
+        while (rest > 0 && this.state === 'run') {
+          const h = Math.min(rest, 1 / 120);
+          this.update(h);
+          rest -= h;
+        }
+      } else if (this.state === 'dying' || this.state === 'clear') {
+        this.timer -= dt;
+        if (this.timer <= 0) this.afterPause();
+      }
+      this.draw(now);
+      requestAnimationFrame((t) => this.frame(t));
+    },
+
+    /* ---------- Zeichnen ---------- */
+    colors() {
+      const css = getComputedStyle(document.body);
+      const v = (name, fb) => css.getPropertyValue(name).trim() || fb;
+      return {
+        c1: v('--primary', '#6366f1'), c2: v('--primary-2', '#8b5cf6'),
+        soft: v('--primary-soft', '#eef2ff'), ink: v('--primary-ink', '#4338ca'),
+        font: v('--font', 'system-ui, sans-serif')
+      };
+    },
+    layout() {
+      const wrap = $('board-wrap');
+      const cw = wrap.clientWidth - 6, ch = wrap.clientHeight - 6;   // 6 = Rahmen
+      this.cell = Math.max(8, Math.floor(Math.min(cw / W, ch / H)));
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const w = this.cell * W, h = this.cell * H;
+      this.canvas.width = w * dpr;
+      this.canvas.height = h * dpr;
+      this.canvas.style.width = w + 'px';
+      this.canvas.style.height = h + 'px';
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.renderWalls();
+      this.draw(performance.now());
+    },
+    // Wände einmal pro Labyrinth als runde Röhren vorzeichnen
+    renderWalls() {
+      if (!this.maze) return;
+      const { cell } = this;
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const L = this.wallLayer;
+      L.width = cell * W * dpr;
+      L.height = cell * H * dpr;
+      const ctx = L.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const { c1, c2 } = this.colors();
+      const grad = ctx.createLinearGradient(0, 0, cell * W, cell * H);
+      grad.addColorStop(0, c1);
+      grad.addColorStop(1, c2);
+      ctx.strokeStyle = grad;
+      ctx.fillStyle = grad;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = cell * 0.56;
+      ctx.lineJoin = 'round';
+      const s = cell * 0.56;
+      ctx.beginPath();
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (!this.maze[y][x]) continue;
+          const cx = (x + 0.5) * cell, cy = (y + 0.5) * cell;
+          // Einzelne Säulen eckig, damit man sie nicht mit Punkten verwechselt
+          if (DIR_LIST.every((d) => this.wall(x + DIRS[d][0], y + DIRS[d][1]) === false)) {
+            ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+            continue;
+          }
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + 0.01, cy);
+          if (x + 1 < W && this.maze[y][x + 1]) { ctx.moveTo(cx, cy); ctx.lineTo(cx + cell, cy); }
+          if (y + 1 < H && this.maze[y + 1][x]) { ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + cell); }
+        }
+      }
+      ctx.stroke();
+    },
+    draw(now) {
+      if (!this.maze) return;
+      const { ctx, cell } = this;
+      const w = cell * W, h = cell * H;
+      const col = this.colors();
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(this.wallLayer, 0, 0, w, h);
+
+      // Punkte und Sterne
+      ctx.fillStyle = col.ink;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const pulse = reducedMotion ? 1 : 1 + Math.sin(now / 160) * 0.12;
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const v = this.dots[y][x];
+          if (v === 1) {
+            ctx.beginPath(); ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, Math.max(2, cell * 0.11), 0, Math.PI * 2); ctx.fill();
+          } else if (v === 2) {
+            ctx.font = `${cell * 0.8 * pulse}px ${EMOJI_FONT}`;
+            ctx.fillText('⭐', (x + 0.5) * cell, (y + 0.56) * cell);
+          }
+        }
+      }
+      if (this.fruit) {
+        ctx.font = `${cell * 0.85 * pulse}px ${EMOJI_FONT}`;
+        ctx.fillText(this.fruit.emoji, (this.fruit.x + 0.5) * cell, (this.fruit.y + 0.56) * cell);
+      }
+
+      // Monster
+      for (const g of this.ghosts) {
+        const q = this.pos(g);
+        let emoji = g.emoji, alpha = 1;
+        if (g.eyes) emoji = '👀';
+        else if (g.scared) emoji = this.fright < 2 && Math.floor(now / 200) % 2 ? g.emoji : '🥶';
+        if (g.wait > 0) alpha = 0.45;
+        const bob = reducedMotion ? 0 : Math.sin(now / 150 + g.i) * cell * 0.05;
+        const off = g.wait > 0 ? (g.i - (this.ghosts.length - 1) / 2) * cell * 0.45 : 0;
+        ctx.globalAlpha = alpha;
+        ctx.font = `${cell * 0.92}px ${EMOJI_FONT}`;
+        ctx.fillText(emoji, (q.x + 0.5) * cell + off, (q.y + 0.56) * cell + bob);
+        ctx.globalAlpha = 1;
+      }
+
+      this.drawPlayer(now);
+
+      // Punkte-Anzeige beim Fressen
+      ctx.font = `800 ${Math.round(cell * 0.6)}px ${col.font}`;
+      for (const p of this.popups) {
+        ctx.globalAlpha = 1 - p.age;
+        ctx.fillStyle = col.ink;
+        ctx.fillText(p.text, (p.x + 0.5) * cell, (p.y + 0.5 - p.age * 0.8) * cell);
+      }
+      ctx.globalAlpha = 1;
+
+      // Hinweise
+      let text = '';
+      if (this.state === 'ready' && $('setup').hidden) text = this.score ? '👆 Weiter!' : '👆 Wischen!';
+      else if (this.state === 'paused') text = '⏸️ Pause';
+      else if (this.state === 'clear') text = `🎉 Stufe ${this.level + 1}`;
+      if (text) {
+        ctx.font = `700 ${Math.round(cell * 1.1)}px ${col.font}`;
+        const tw = ctx.measureText(text).width + cell * 1.4;
+        const th = cell * 2;
+        const ty = (START.y - 3.5) * cell;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        roundRect(ctx, (w - tw) / 2, ty - th / 2, tw, th, th / 2);
+        ctx.fillStyle = col.ink;
+        ctx.fillText(text, w / 2, ty + cell * 0.06);
+      }
+    },
+    drawPlayer(now) {
+      const { ctx, cell } = this;
+      const p = this.player;
+      const q = this.pos(p);
+      const cx = (q.x + 0.5) * cell, cy = (q.y + 0.5) * cell;
+      const r = cell * 0.44;
+      const angle = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[p.dir];
+      let open = p.moving && this.state === 'run' ? (Math.sin(p.mouth) + 1) / 2 : 0.35;
+      let scale = 1;
+      if (this.state === 'dying') {
+        const k = 1 - Math.max(0, this.timer) / 1.4;
+        open = Math.min(1, k * 2);
+        scale = 1 - Math.max(0, k - 0.5) * 2;
+      }
+      if (scale <= 0) return;
+      const mouth = 0.08 + open * 0.62;     // halber Öffnungswinkel
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(scale, scale);
+      ctx.rotate(angle);
+      // Körper: runder orange-gelber Mampfer
+      const grad = ctx.createRadialGradient(-r * 0.3, -r * 0.4, r * 0.1, 0, 0, r);
+      grad.addColorStop(0, '#fde68a');
+      grad.addColorStop(1, '#f59e0b');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, mouth, Math.PI * 2 - mouth);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = Math.max(1, cell * 0.05);
+      ctx.stroke();
+      // Zwei Augen oben (beim Blick nach links nicht auf dem Kopf)
+      const flip = p.dir === 'left' ? -1 : 1;
+      for (const k of [0, 1]) {
+        const ex = -r * 0.05 + k * r * 0.38, ey = -r * 0.5 * flip;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(ex, ey, r * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath(); ctx.arc(ex + r * 0.06, ey, r * 0.1, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    },
+
+    /* ---------- Bedienung ---------- */
+    bindInput() {
+      // Wischen irgendwo im Spielbereich; nach jeder erkannten Richtung neu ansetzen
+      let start = null, moved = false;
+      const stage = $('stage');
+      stage.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.controls')) return;
+        start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+        moved = false;
+      });
+      stage.addEventListener('pointermove', (e) => {
+        if (!start || e.pointerId !== start.id) return;
+        const dx = e.clientX - start.x, dy = e.clientY - start.y;
+        const th = Math.max(16, this.cell * 0.7);
+        if (Math.abs(dx) < th && Math.abs(dy) < th) return;
+        this.steer(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+        start.x = e.clientX; start.y = e.clientY;
+        moved = true;
+      });
+      const end = (e) => {
+        if (!start || e.pointerId !== start.id) return;
+        if (!moved && this.state === 'paused' && e.type === 'pointerup') this.resume();
+        start = null;
+      };
+      stage.addEventListener('pointerup', end);
+      stage.addEventListener('pointercancel', end);
+      for (const b of document.querySelectorAll('#pad [data-dir]')) {
+        b.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          this.steer(b.dataset.dir);
+          b.classList.add('hit');
+          setTimeout(() => b.classList.remove('hit'), 120);
+        });
+      }
+      const keys = {
+        ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+        w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right'
+      };
+      document.addEventListener('keydown', (e) => {
+        if (keys[e.key]) { e.preventDefault(); this.steer(keys[e.key]); }
+        else if (e.key === ' ' || e.key === 'p' || e.key === 'P') { e.preventDefault(); this.togglePause(); }
+      });
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
+    },
+    togglePause() {
+      if (document.querySelector('.overlay:not([hidden])')) return;
+      if (this.state === 'run') this.pause();
+      else if (this.state === 'paused') this.resume();
+    },
+    bindUi() {
+      for (const id of ['btn-pause', 'btn-pause-big']) $(id).addEventListener('click', () => { Sound.click(); this.togglePause(); });
+      $('btn-new').addEventListener('click', () => {
+        Sound.click();
+        // 🔄 = neue Runde über den Startbildschirm (Tempo, Monster, Tasten)
+        if (this.inProgress()) { this.pause(); $('confirm').hidden = false; }
+        else { this.restart(); this.openSetup(); }
+      });
+      $('confirm-no').addEventListener('click', () => { Sound.click(); $('confirm').hidden = true; });
+      $('confirm-yes').addEventListener('click', () => { Sound.click(); $('confirm').hidden = true; this.restart(); this.openSetup(); });
+      $('btn-again').addEventListener('click', () => { Sound.click(); this.restart(); });
+      $('btn-go').addEventListener('click', () => {
+        Sound.init(); Sound.click();
+        $('setup').hidden = true;
+        // Geändertes Tempo oder andere Monsterzahl: neue Runde mit eigenem Rekord
+        if (this.key !== this.speed + '-' + this.foes) this.newGame();
+      });
+      for (const b of document.querySelectorAll('#speed-grid [data-speed]')) {
+        b.addEventListener('click', () => { Sound.click(); this.speed = b.dataset.speed; Store.set('speed', this.speed); this.refreshSetup(); });
+      }
+      for (const b of document.querySelectorAll('#foes-grid [data-foes]')) {
+        b.addEventListener('click', () => { Sound.click(); this.foes = +b.dataset.foes; Store.set('foes', this.foes); this.refreshSetup(); });
+      }
+      for (const b of document.querySelectorAll('#pad-grid [data-pad]')) {
+        b.addEventListener('click', () => { Sound.click(); this.pad = b.dataset.pad; Store.set('pad', this.pad); this.applyPad(); this.refreshSetup(); });
+      }
+    },
+    restart() {
+      Confetti.stop();
+      $('over').hidden = true;
+      this.newGame();
+    },
+    openSetup() { this.refreshSetup(); $('setup').hidden = false; },
+    refreshSetup() {
+      for (const b of document.querySelectorAll('[data-speed]')) b.classList.toggle('selected', b.dataset.speed === this.speed);
+      for (const b of document.querySelectorAll('[data-foes]')) b.classList.toggle('selected', +b.dataset.foes === this.foes);
+      for (const b of document.querySelectorAll('[data-pad]')) b.classList.toggle('selected', b.dataset.pad === this.pad);
+      const changed = this.key !== this.speed + '-' + this.foes;
+      $('btn-go').textContent = this.inProgress() && !changed ? '▶️ Weiter' : '▶️ Los';
+    },
+    applyPad() {
+      document.body.classList.toggle('no-pad', this.pad === 'off');
+      document.body.classList.toggle('pad-left', this.pad === 'left');
+    }
+  };
+
+  /* ---------- Hilfen ---------- */
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+    ctx.fill();
+  }
+
+  Game.init();
+  </script>
+</body>
+</html>
