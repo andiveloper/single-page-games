@@ -300,17 +300,45 @@ body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
     .pic .d .ink { fill: #334155; stroke: none; }
     .pic .d .white { fill: #fff; }
 
-    /* Farbtöpfe */
-    #palette {
+    /* Gemalte Striche: liegen direkt über ihrer Fläche und sind auf deren Form beschnitten,
+       die Umrandung (.edge) wird darüber neu gezeichnet */
+    .pic .strokes, .pic .edge { pointer-events: none; }
+    .pic .strokes path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .pic .edge { fill: none; stroke: #334155; stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+    #paper { touch-action: none; }
+
+    /* Werkzeuge und Farbtöpfe */
+    #side {
       flex: none;
-      display: grid;
-      grid-template-columns: repeat(6, var(--tap));
-      justify-content: center;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
       padding: 8px;
       background: var(--surface-2);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
+    }
+    #tools { display: flex; justify-content: center; gap: 12px; }
+    .tool {
+      width: var(--tap);
+      height: var(--tap);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 28px;
+      line-height: 1;
+      box-shadow: 0 0 0 2px var(--line), 0 2px 4px rgba(0, 0, 0, 0.12);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .tool:active { transform: scale(0.9); }
+    .tool.selected { background: var(--primary-soft); box-shadow: 0 0 0 4px var(--primary), 0 4px 10px rgba(0, 0, 0, 0.2); transform: scale(1.08); }
+
+    #palette {
+      display: grid;
+      grid-template-columns: repeat(6, var(--tap));
+      justify-content: center;
+      gap: 8px;
     }
     .pot {
       width: var(--tap);
@@ -329,7 +357,9 @@ body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
     /* Querformat: Farbtöpfe rechts neben dem Bild */
     @media (orientation: landscape) {
       #stage { flex-direction: row; }
-      #palette { grid-template-columns: repeat(3, var(--tap)); align-content: center; }
+      #side { justify-content: center; }
+      #tools { gap: 8px; }
+      #palette { grid-template-columns: repeat(3, var(--tap)); }
     }
     @media (orientation: landscape) and (max-height: 500px) {
       #palette { grid-template-columns: repeat(4, var(--tap)); }
@@ -341,7 +371,7 @@ body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
     #pic-grid { grid-template-columns: repeat(4, 1fr); }
     #pic-grid .choice-btn { min-height: 0; aspect-ratio: 1; padding: 4px; }
     #pic-grid svg { width: 100%; height: 100%; border-radius: 10px; }
-    #pic-grid .pic .r, #pic-grid .pic .d { stroke-width: 6; }
+    #pic-grid .pic .r, #pic-grid .pic .d, #pic-grid .pic .edge { stroke-width: 6; }
   </style>
 </head>
 <body class="game u6">
@@ -358,7 +388,10 @@ body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
 
   <main id="stage">
     <div id="paper-wrap"><div id="paper"></div></div>
-    <div id="palette" role="radiogroup" aria-label="Farben"></div>
+    <div id="side">
+      <div id="tools" role="radiogroup" aria-label="Werkzeug"></div>
+      <div id="palette" role="radiogroup" aria-label="Farben"></div>
+    </div>
   </main>
 
   <div class="gamebar">
@@ -486,6 +519,7 @@ SPG.render();
     pick(i) { if (this.init()) this.tone(NOTES[i % NOTES.length], 0, 0.12, 'triangle', 0.18); },
     // „Blubb“: Ton passend zur Farbe, gleitet nach oben
     fill(i) { if (this.init()) this.tone(NOTES[i % NOTES.length] * 0.75, 0, 0.22, 'sine', 0.32, NOTES[i % NOTES.length] * 1.5); },
+    draw(i) { if (this.init()) this.tone(NOTES[i % NOTES.length], 0, 0.1, 'sine', 0.12); },
     undo() { if (this.init()) this.tone(600, 0, 0.15, 'sine', 0.2, 300); },
     win() {
       if (!this.init()) return;
@@ -561,6 +595,13 @@ SPG.render();
     ['#ef4444', 'Rot'], ['#f97316', 'Orange'], ['#facc15', 'Gelb'], ['#84cc16', 'Hellgrün'],
     ['#16a34a', 'Grün'], ['#38bdf8', 'Hellblau'], ['#2563eb', 'Blau'], ['#9333ea', 'Lila'],
     ['#f472b6', 'Rosa'], ['#92400e', 'Braun'], ['#475569', 'Grau'], [WHITE, 'Weiß']
+  ];
+
+  // Werkzeuge: zwei Strichstärken (in Bildeinheiten, das Bild ist 400 breit) und Füllen
+  const TOOLS = [
+    { id: 'pen', icon: '✏️', name: 'Stift', w: 10 },
+    { id: 'brush', icon: '🖌️', name: 'Pinsel', w: 26 },
+    { id: 'fill', icon: '🪣', name: 'Füllen' }
   ];
 
   function star(cx, cy, r) {
@@ -715,15 +756,68 @@ SPG.render();
     return `<svg class="pic" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">${p.svg}</svg>`;
   }
 
+  /* Striche gehören zu der Fläche, in der sie begonnen haben. Sie liegen direkt über ihr,
+     beschnitten auf ihre Form; alle späteren Flächen liegen ohnehin darüber.
+     So bleibt die Farbe genau im sichtbaren Teil der Fläche. */
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  let clipSeq = 0;
+
+  function strokeLayer(reg) {
+    if (reg._strokes) return reg._strokes;
+    const shape = reg.cloneNode(false);
+    ['class', 'style', 'data-i'].forEach((a) => shape.removeAttribute(a));
+    const clip = document.createElementNS(SVGNS, 'clipPath');
+    clip.id = 'spg-clip-' + (++clipSeq);
+    clip.appendChild(shape);
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', 'strokes');
+    g.setAttribute('clip-path', `url(#${clip.id})`);
+    const edge = shape.cloneNode(false);
+    edge.setAttribute('class', 'edge');
+    reg.after(clip, g, edge);
+    reg._strokes = g;
+    return g;
+  }
+
+  const r1 = (n) => Math.round(n * 10) / 10;
+  function strokePath(p) {
+    let d = `M${p[0]} ${p[1]}`;
+    if (p.length <= 2) return d + 'h0.01';      // ein Punkt: runde Kappe malt einen Tupfen
+    for (let i = 2; i < p.length - 2; i += 2) {
+      d += `Q${p[i]} ${p[i + 1]} ${r1((p[i] + p[i + 2]) / 2)} ${r1((p[i + 1] + p[i + 3]) / 2)}`;
+    }
+    return d + `L${p[p.length - 2]} ${p[p.length - 1]}`;
+  }
+
+  function addStroke(regs, s) {
+    const reg = regs[s.r];
+    if (!reg) return null;
+    const path = document.createElementNS(SVGNS, 'path');
+    path.setAttribute('stroke', s.c);
+    path.setAttribute('stroke-width', s.w);
+    path.setAttribute('d', strokePath(s.p));
+    strokeLayer(reg).appendChild(path);
+    return path;
+  }
+
+  function validStroke(s) {
+    return s && Number.isInteger(s.r) && typeof s.c === 'string' && typeof s.w === 'number' &&
+      Array.isArray(s.p) && s.p.length >= 2 && s.p.every((n) => typeof n === 'number');
+  }
+
   class ColoringGame {
     constructor() {
       this.paper = $('paper');
       this.pic = 0;
       this.color = 0;
+      this.tool = 1;            // Pinsel
       this.fills = {};          // Bild-ID → Farben der Flächen
+      this.strokes = {};        // Bild-ID → gemalte Striche {r: Fläche, c: Farbe, w: Breite, p: [x, y, …]}
+      this.stroke = null;       // Strich, der gerade gemalt wird
       this.won = {};            // Bild-ID → schon gefeiert
-      this.history = [];        // für ↩️: [Fläche, vorherige Farbe]
+      this.history = [];        // für ↩️: [Fläche, vorherige Farbe] oder ['stroke']
       this.load();
+      this.buildTools();
       this.buildPalette();
       this.bind();
       this.show(this.pic);
@@ -735,6 +829,12 @@ SPG.render();
         const s = JSON.parse(localStorage.getItem(STORE) || '{}');
         if (Number.isInteger(s.pic) && PICTURES[s.pic]) this.pic = s.pic;
         if (Number.isInteger(s.color) && COLORS[s.color]) this.color = s.color;
+        if (Number.isInteger(s.tool) && TOOLS[s.tool]) this.tool = s.tool;
+        if (s.strokes && typeof s.strokes === 'object') {
+          for (const [id, list] of Object.entries(s.strokes)) {
+            if (Array.isArray(list)) this.strokes[id] = list.filter(validStroke);
+          }
+        }
         if (s.fills && typeof s.fills === 'object') this.fills = s.fills;
         if (s.won && typeof s.won === 'object') this.won = s.won;
       } catch (e) {}
@@ -742,7 +842,7 @@ SPG.render();
 
     save() {
       try {
-        localStorage.setItem(STORE, JSON.stringify({ pic: this.pic, color: this.color, fills: this.fills, won: this.won }));
+        localStorage.setItem(STORE, JSON.stringify({ pic: this.pic, color: this.color, tool: this.tool, fills: this.fills, strokes: this.strokes, won: this.won }));
       } catch (e) {}
     }
 
@@ -755,6 +855,7 @@ SPG.render();
     }
 
     show(i) {
+      this.endStroke();
       this.pic = i;
       this.history = [];
       this.paper.innerHTML = picMarkup(this.current);
@@ -762,8 +863,34 @@ SPG.render();
       const cols = this.colorsFor(this.current, regs.length);
       regs.forEach((el, k) => { el.dataset.i = k; el.style.fill = cols[k]; });
       this.fills[this.current.id] = cols;
+      this.strokesFor(this.current).forEach((s) => addStroke(regs, s));
       this.paper.setAttribute('aria-label', this.current.name);
       this.updateUndo();
+      this.save();
+    }
+
+    strokesFor(p) { return this.strokes[p.id] || (this.strokes[p.id] = []); }
+
+    buildTools() {
+      const box = $('tools');
+      TOOLS.forEach((t, i) => {
+        const b = document.createElement('button');
+        b.className = 'tool';
+        b.textContent = t.icon;
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-label', t.name);
+        b.addEventListener('click', () => { this.pickTool(i); Sound.pick(i + 3); });
+        box.appendChild(b);
+      });
+      this.pickTool(this.tool);
+    }
+
+    pickTool(i) {
+      this.tool = i;
+      [...$('tools').children].forEach((b, k) => {
+        b.classList.toggle('selected', k === i);
+        b.setAttribute('aria-checked', String(k === i));
+      });
       this.save();
     }
 
@@ -810,13 +937,53 @@ SPG.render();
       this.checkDone();
     }
 
+    beginStroke(el, e) {
+      const svg = el.ownerSVGElement;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const data = { r: Number(el.dataset.i), c: COLORS[this.color][0], w: TOOLS[this.tool].w, p: [] };
+      this.stroke = { data, inv: ctm.inverse(), pointer: e.pointerId, path: null };
+      this.extendStroke(e);
+      this.stroke.path = addStroke(this.regions, data);
+      try { this.paper.setPointerCapture(e.pointerId); } catch (err) {}
+      Sound.draw(this.color);
+    }
+
+    extendStroke(e) {
+      const st = this.stroke;
+      const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(st.inv);
+      const p = st.data.p;
+      const x = r1(pt.x), y = r1(pt.y);
+      // Nur Punkte mit etwas Abstand speichern, das hält die Striche klein
+      if (p.length && Math.hypot(x - p[p.length - 2], y - p[p.length - 1]) < 2) return;
+      p.push(x, y);
+    }
+
+    endStroke() {
+      const st = this.stroke;
+      if (!st) return;
+      this.stroke = null;
+      this.strokesFor(this.current).push(st.data);
+      this.history.push(['stroke']);
+      if (this.history.length > 200) this.history.shift();
+      this.updateUndo();
+      this.save();
+      this.checkDone();
+    }
+
     undo() {
       const last = this.history.pop();
       if (!last) return;
-      const [k, prev] = last;
-      this.fills[this.current.id][k] = prev;
-      const el = this.regions[k];
-      if (el) el.style.fill = prev;
+      if (last[0] === 'stroke') {
+        const s = this.strokesFor(this.current).pop();
+        const layer = s && this.regions[s.r] && this.regions[s.r]._strokes;
+        if (layer && layer.lastChild) layer.lastChild.remove();
+      } else {
+        const [k, prev] = last;
+        this.fills[this.current.id][k] = prev;
+        const el = this.regions[k];
+        if (el) el.style.fill = prev;
+      }
       Sound.undo();
       this.updateUndo();
       this.save();
@@ -824,17 +991,21 @@ SPG.render();
 
     updateUndo() { $('btn-undo').disabled = this.history.length === 0; }
 
-    hasColor() { return this.fills[this.current.id].some((c) => c !== WHITE); }
+    hasColor() { return this.fills[this.current.id].some((c) => c !== WHITE) || this.strokesFor(this.current).length > 0; }
 
     clear() {
       delete this.fills[this.current.id];
+      delete this.strokes[this.current.id];
       delete this.won[this.current.id];
       this.show(this.pic);
     }
 
     checkDone() {
       const id = this.current.id;
-      if (this.won[id] || this.fills[id].some((c) => c === WHITE)) return;
+      if (this.won[id]) return;
+      // Eine Fläche zählt als bunt, wenn sie gefüllt ist oder bunt bemalt wurde
+      const painted = new Set(this.strokesFor(this.current).filter((s) => s.c !== WHITE).map((s) => s.r));
+      if (this.fills[id].some((c, k) => c === WHITE && !painted.has(k))) return;
       this.won[id] = true;
       this.save();
       setTimeout(() => {
@@ -856,6 +1027,7 @@ SPG.render();
         const regs = b.querySelectorAll('.r');
         const cols = this.colorsFor(p, regs.length);
         regs.forEach((el, k) => (el.style.fill = cols[k]));
+        this.strokesFor(p).forEach((s) => addStroke(regs, s));
         b.addEventListener('click', () => { $('pics').hidden = true; Sound.pick(i); this.show(i); });
         grid.appendChild(b);
       });
@@ -876,11 +1048,25 @@ SPG.render();
     }
 
     bind() {
-      // Antippen füllt sofort (pointerdown statt click, fühlt sich direkter an)
+      // 🪣 füllt beim Antippen sofort (pointerdown statt click, fühlt sich direkter an),
+      // ✏️/🖌️ malen mit Finger oder Stift, nur in der Fläche, in der der Strich beginnt
       this.paper.addEventListener('pointerdown', (e) => {
         const el = e.target.closest && e.target.closest('.r');
-        if (el) this.paint(el);
+        if (!el || this.stroke) return;
+        if (!TOOLS[this.tool].w) { this.paint(el); return; }
+        e.preventDefault();
+        this.beginStroke(el, e);
       });
+      this.paper.addEventListener('pointermove', (e) => {
+        if (!this.stroke || e.pointerId !== this.stroke.pointer) return;
+        const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+        (evs.length ? evs : [e]).forEach((ev) => this.extendStroke(ev));
+        this.stroke.path.setAttribute('d', strokePath(this.stroke.data.p));
+      });
+      const finish = (e) => { if (this.stroke && e.pointerId === this.stroke.pointer) this.endStroke(); };
+      this.paper.addEventListener('pointerup', finish);
+      this.paper.addEventListener('pointercancel', finish);
+      this.paper.addEventListener('lostpointercapture', finish);
 
       $('btn-undo').addEventListener('click', () => this.undo());
       $('btn-new').addEventListener('click', () => this.openPics());
