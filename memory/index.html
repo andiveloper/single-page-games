@@ -109,6 +109,10 @@ body.game {
   text-overflow: ellipsis;
 }
 .topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
 @media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
 
 /* ---------- Knöpfe ---------- */
@@ -130,6 +134,8 @@ body.game {
 }
 .icon-btn:active { transform: scale(0.9); }
 .icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
 
 .big-btn {
   width: 100%;
@@ -200,6 +206,10 @@ body.game {
   -webkit-backdrop-filter: blur(4px);
 }
 .overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
 .dialog {
   width: min(100%, 420px);
   max-height: calc(100dvh - 32px);
@@ -312,10 +322,13 @@ body.game {
     @keyframes wiggle { 0%, 100% { transform: rotateY(180deg); } 30% { transform: rotateY(180deg) rotate(-4deg); } 70% { transform: rotateY(180deg) rotate(4deg); } }
 
     /* Einstellungen */
-    .choice-grid { grid-template-columns: repeat(4, 1fr); }
-    .choice-btn svg { width: 34px; height: 26px; }
-    .thumbs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
-    .thumbs img { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; box-shadow: inset 0 0 0 2px var(--line), var(--shadow); }
+    /* Startmenü: erst Bilder, dann Anzahl Karten */
+    .menu-btn { min-height: 96px; font-size: 1.45rem; border-radius: 24px; }
+    #count-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    #count-grid .choice-btn { min-height: 104px; font-size: 1.6rem; }
+    .choice-btn svg { width: 48px; height: 36px; }
+    .thumbs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .thumbs img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; box-shadow: inset 0 0 0 2px var(--line), var(--shadow); }
   </style>
 </head>
 <body class="game u6">
@@ -323,8 +336,10 @@ body.game {
   <header class="topbar">
     <h1>🃏 <span class="title-text">Memory</span><span class="progress" id="progress" aria-hidden="true"></span></h1>
     <div class="actions">
-      <button class="icon-btn" id="btn-new" aria-label="Neu mischen">🔄</button>
-      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen für Eltern">⚙️</button>
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
     </div>
   </header>
 
@@ -332,26 +347,26 @@ body.game {
     <div id="board" aria-label="Memory-Karten"></div>
   </main>
 
-  <!-- Einstellungen (für Eltern) -->
-  <div class="overlay" id="settings" hidden>
-    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <h2 id="settings-title">Einstellungen</h2>
-
-      <label class="big-btn success" for="file-input" style="margin-top:12px">📷 Fotos wählen</label>
-      <input type="file" id="file-input" class="visually-hidden" accept="image/*" multiple>
-      <div class="thumbs" id="thumbs"></div>
-
-      <div class="section-label">Wie viele Karten?</div>
-      <div class="choice-grid" id="count-grid"></div>
-
-      <div class="section-label">Mehr</div>
-      <div class="row">
-        <button class="big-btn plain" id="btn-animals">🐾 Nur Tiere</button>
-        <button class="big-btn plain" id="btn-fullscreen">⛶ Vollbild</button>
+  <!-- Startmenü: 1. Bilder wählen, 2. Anzahl Karten -->
+  <div class="overlay" id="menu" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+      <div id="step-motif">
+        <div class="big-emoji">🃏</div>
+        <h2 id="menu-title">Memory</h2>
+        <div class="stack" style="margin-top:16px">
+          <label class="big-btn success menu-btn" for="file-input">📷 Eigene Fotos</label>
+          <button class="big-btn soft menu-btn" id="btn-my-photos" aria-label="Meine Fotos"><span class="thumbs" id="thumbs"></span></button>
+          <button class="big-btn soft menu-btn" id="btn-animals">🐾 Tiere</button>
+        </div>
+        <input type="file" id="file-input" class="visually-hidden" accept="image/*" multiple>
+        <button class="big-btn plain" id="btn-close-menu" aria-label="Schließen" style="margin-top:20px">✖️</button>
       </div>
-      <a class="big-btn plain" id="btn-home" href="../" style="margin-top:12px">🏠 Alle Spiele</a>
-
-      <button class="big-btn" id="btn-close-settings" style="margin-top:20px">Fertig</button>
+      <div id="step-count" hidden>
+        <div class="big-emoji" id="count-emoji">🐾</div>
+        <h2>Wie viele Karten?</h2>
+        <div class="choice-grid" id="count-grid" style="margin-top:14px"></div>
+        <button class="big-btn plain" id="btn-back" aria-label="Zurück" style="margin-top:20px">⬅️</button>
+      </div>
     </div>
   </div>
 
@@ -383,6 +398,53 @@ body.game {
 
   <script>
   'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+SPG.render();
+/* SPG-JS:END */
 
   /* ===================================================================
      Töne (Web Audio, keine Dateien nötig)
@@ -397,6 +459,7 @@ body.game {
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
     tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
       const t = this.ctx.currentTime + start;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -587,6 +650,8 @@ body.game {
       const saved = load();
       this.count = COUNTS.includes(saved.count) ? saved.count : 6;
       this.photos = Array.isArray(saved.photos) ? saved.photos.slice(-MAX_PHOTOS) : [];
+      this.usePhotos = saved.usePhotos !== false && this.photos.length > 0;
+      this.pendingPhotos = false;        // im Menü gewählt, noch nicht gestartet
 
       this.cards = [];
       this.open = [];          // aufgedeckte, noch nicht gefundene Karten (max. 2)
@@ -596,12 +661,13 @@ body.game {
       this.bindUI();
       this.buildCountButtons();
       this.newGame();
+      this.openMenu();
     }
 
     persist() {
-      if (!save({ count: this.count, photos: this.photos })) {
+      if (!save({ count: this.count, photos: this.photos, usePhotos: this.usePhotos })) {
         // Speicher voll: wenigstens die Einstellung behalten
-        save({ count: this.count, photos: [] });
+        save({ count: this.count, photos: [], usePhotos: false });
         return false;
       }
       return true;
@@ -610,13 +676,16 @@ body.game {
     /* ---------- Oberfläche ---------- */
     bindUI() {
       $('btn-new').addEventListener('click', () => {
-        if (this.hasProgress()) this.ask(() => this.newGame());
-        else this.newGame();
+        if (this.hasProgress()) this.ask(() => this.openMenu());
+        else this.openMenu();
       });
 
-      $('btn-settings').addEventListener('click', () => this.openSettings());
-      $('btn-close-settings').addEventListener('click', () => this.closeSettings());
-      $('settings').addEventListener('click', (e) => { if (e.target.id === 'settings') this.closeSettings(); });
+      const menu = $('menu');
+      $('btn-close-menu').addEventListener('click', () => (menu.hidden = true));
+      menu.addEventListener('click', (e) => { if (e.target === menu) menu.hidden = true; });
+      $('btn-back').addEventListener('click', () => this.showStep('motif'));
+      $('btn-my-photos').addEventListener('click', () => { Sound.flip(); this.chooseMotif(true); });
+      $('btn-animals').addEventListener('click', () => { Sound.flip(); this.chooseMotif(false); });
 
       $('file-input').addEventListener('change', async (e) => {
         const files = Array.from(e.target.files || []);
@@ -629,31 +698,10 @@ body.game {
         }
         if (failed) toast('Manche Fotos kann der Browser nicht öffnen. Bitte JPG oder PNG wählen.');
         if (!added.length) return;
-        this.photos = this.photos.concat(added).slice(-MAX_PHOTOS);
+        // Neue Auswahl ersetzt die alten Fotos
+        this.photos = added.slice(-MAX_PHOTOS);
         if (!this.persist()) toast('Die Fotos sind nur bis zum Schließen gespeichert.');
-        this.renderThumbs();
-        this.closeSettings();
-        this.newGame();
-      });
-
-      $('btn-animals').addEventListener('click', () => {
-        this.photos = [];
-        this.persist();
-        this.closeSettings();
-        this.newGame();
-      });
-
-      // Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein
-      if (location.protocol === 'file:') $('btn-home').hidden = true;
-
-      const fsBtn = $('btn-fullscreen');
-      const root = document.documentElement;
-      if (!root.requestFullscreen && !root.webkitRequestFullscreen) fsBtn.style.display = 'none';
-      fsBtn.addEventListener('click', () => {
-        const isFs = document.fullscreenElement || document.webkitFullscreenElement;
-        if (isFs) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-        else { try { Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {}); } catch (err) {} }
-        this.closeSettings();
+        this.chooseMotif(true);
       });
 
       $('btn-again').addEventListener('click', () => {
@@ -684,9 +732,11 @@ body.game {
         b.innerHTML = cardsIcon(g[0], g[1]) + `<span>${n}</span>`;
         grid.appendChild(b);
         b.addEventListener('click', () => {
+          Sound.flip();
           this.count = n;
+          this.usePhotos = this.pendingPhotos;
           this.persist();
-          this.closeSettings();
+          $('menu').hidden = true;
           this.newGame();
         });
       }
@@ -695,21 +745,33 @@ body.game {
     renderThumbs() {
       const box = $('thumbs');
       box.innerHTML = '';
-      for (const src of this.photos) {
+      for (const src of this.photos.slice(0, 5)) {
         const img = document.createElement('img');
         img.src = src;
         img.alt = '';
         box.appendChild(img);
       }
-      $('btn-animals').hidden = !this.photos.length;
+      $('btn-my-photos').hidden = !this.photos.length;
     }
 
-    openSettings() {
-      for (const b of document.querySelectorAll('.choice-btn')) b.classList.toggle('selected', Number(b.dataset.count) === this.count);
+    /* ---------- Startmenü ---------- */
+    openMenu() {
       this.renderThumbs();
-      $('settings').hidden = false;
+      this.showStep('motif');
+      $('menu').hidden = false;
     }
-    closeSettings() { $('settings').hidden = true; }
+
+    chooseMotif(photos) {
+      this.pendingPhotos = photos;
+      $('count-emoji').textContent = photos ? '📷' : '🐾';
+      this.showStep('count');
+    }
+
+    showStep(step) {
+      $('step-motif').hidden = step !== 'motif';
+      $('step-count').hidden = step !== 'count';
+      for (const b of document.querySelectorAll('#count-grid .choice-btn')) b.classList.toggle('selected', Number(b.dataset.count) === this.count);
+    }
 
     ask(onYes) {
       const dlg = $('confirm');
@@ -734,7 +796,7 @@ body.game {
 
       // Motive: zuerst eigene Fotos (zufällige Auswahl), Rest mit Tieren auffüllen
       const pairs = this.count / 2;
-      const motifs = shuffle(this.photos.slice()).slice(0, pairs).map((src) => ({ src }));
+      const motifs = shuffle(this.usePhotos ? this.photos.slice() : []).slice(0, pairs).map((src) => ({ src }));
       for (const [emoji, bg] of shuffle(ANIMALS.slice())) {
         if (motifs.length >= pairs) break;
         motifs.push({ emoji, bg });

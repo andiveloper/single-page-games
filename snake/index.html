@@ -109,6 +109,10 @@ body.game {
   text-overflow: ellipsis;
 }
 .topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
 @media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
 
 /* ---------- Knöpfe ---------- */
@@ -130,6 +134,8 @@ body.game {
 }
 .icon-btn:active { transform: scale(0.9); }
 .icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
 
 .big-btn {
   width: 100%;
@@ -200,6 +206,10 @@ body.game {
   -webkit-backdrop-filter: blur(4px);
 }
 .overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
 .dialog {
   width: min(100%, 420px);
   max-height: calc(100dvh - 32px);
@@ -246,6 +256,8 @@ body.game {
     /* ---------- Snake ---------- */
     .topbar h1 { display: flex; align-items: center; gap: 12px; }
     .topbar h1 .best { font-size: 0.75em; color: var(--muted); }
+    /* Handy: fünf Knöpfe oben, Rekord steht im Start- und Endbildschirm */
+    @media (max-width: 460px) { .topbar h1 .logo, .topbar h1 .best { display: none; } }
 
     #stage {
       flex: 1;
@@ -266,14 +278,15 @@ body.game {
     }
 
     /* Steuerkreuz (zusätzlich zum Wischen) */
+    /* Eng zusammen, damit ein Daumen alle vier Richtungen erreicht */
     #pad {
       flex: none;
       display: grid;
-      grid-template-columns: repeat(3, var(--big));
-      grid-template-rows: repeat(3, var(--big));
-      gap: 6px;
+      grid-template-columns: repeat(3, var(--tap));
+      grid-template-rows: repeat(3, var(--tap));
+      gap: 2px;
     }
-    #pad .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+    #pad .icon-btn { width: var(--tap); height: var(--tap); font-size: calc(var(--tap) * 0.46); }
     #pad [data-dir="up"] { grid-area: 1 / 2; }
     #pad [data-dir="left"] { grid-area: 2 / 1; }
     #pad [data-dir="right"] { grid-area: 2 / 3; }
@@ -281,45 +294,58 @@ body.game {
     #pad .hub { grid-area: 2 / 2; display: grid; place-items: center; font-size: calc(var(--big) * 0.42); opacity: 0.5; }
     #pad .icon-btn.hit { background: var(--primary-line); }
     body.no-pad #pad { display: none; }
+    /* Großer Pause-Knopf direkt neben dem Steuerkreuz */
+    /* Rechtshänder: Steuerkreuz am rechten Rand, Pause links daneben; Linkshänder gespiegelt */
+    .controls { flex: none; display: flex; flex-direction: row-reverse; align-items: center; gap: 14px; align-self: flex-end; }
+    body.pad-left .controls { flex-direction: row; align-self: flex-start; }
+    .pause-btn { width: 76px; height: 76px; font-size: 36px; border-radius: 22px; }
+    .pause-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
 
     /* Querformat: Steuerkreuz rechts neben dem Spielfeld */
     @media (orientation: landscape) {
       #stage { flex-direction: row; }
+      .controls, body.pad-left .controls { flex-direction: column; align-self: center; }
+      body.pad-left #stage { flex-direction: row-reverse; }
       #board-wrap { align-self: stretch; }
     }
     /* Wenig Platz (Handy quer): kleineres Steuerkreuz */
     @media (max-height: 480px) {
-      #pad { grid-template-columns: repeat(3, var(--tap)); grid-template-rows: repeat(3, var(--tap)); gap: 4px; }
-      #pad .icon-btn { width: var(--tap); height: var(--tap); }
+      #pad { grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); }
+      #pad .icon-btn { width: 48px; height: 48px; }
     }
 
     .choice-grid { grid-template-columns: repeat(3, 1fr); }
     .choice-btn { min-height: 76px; gap: 2px; }
     .choice-btn span { font-size: 1.7rem; line-height: 1; }
     .choice-btn small { font-size: 0.9rem; font-weight: 700; }
-    #walls-grid, #pad-grid { grid-template-columns: repeat(2, 1fr); }
+    #walls-grid { grid-template-columns: repeat(2, 1fr); }
     .dialog .score-line { font-size: 1.3rem; color: var(--ink); font-weight: 700; }
   </style>
 </head>
 <body class="game ue6">
 
   <header class="topbar">
-    <h1>🐍 <span id="score" aria-label="Punkte">0</span> <span class="best" aria-label="Rekord">🏆 <span id="best">0</span></span></h1>
+    <h1><span class="logo">🐍</span> <span id="score" aria-label="Punkte">0</span> <span class="best" aria-label="Rekord">🏆 <span id="best">0</span></span></h1>
     <div class="actions">
       <button class="icon-btn" id="btn-pause" aria-label="Pause">⏸️</button>
-      <button class="icon-btn" id="btn-new" aria-label="Neu">🔄</button>
-      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen">⚙️</button>
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
     </div>
   </header>
 
   <main id="stage">
     <div id="board-wrap"><canvas id="board" aria-label="Spielfeld"></canvas></div>
+    <div class="controls">
     <div id="pad" aria-label="Steuerkreuz">
       <button class="icon-btn" data-dir="up" aria-label="Hoch">⬆️</button>
       <button class="icon-btn" data-dir="left" aria-label="Links">⬅️</button>
       <div class="hub" aria-hidden="true">🐍</div>
       <button class="icon-btn" data-dir="right" aria-label="Rechts">➡️</button>
       <button class="icon-btn" data-dir="down" aria-label="Runter">⬇️</button>
+    </div>
+    <button class="icon-btn pause-btn" id="btn-pause-big" aria-label="Pause">⏸️</button>
     </div>
   </main>
 
@@ -345,17 +371,12 @@ body.game {
 
       <div class="section-label">Tasten</div>
       <div class="choice-grid" id="pad-grid">
-        <button class="choice-btn" data-pad="on"><span>🎮</span><small>An</small></button>
+        <button class="choice-btn" data-pad="left"><span>🫲</span><small>Links</small></button>
+        <button class="choice-btn" data-pad="right"><span>🫱</span><small>Rechts</small></button>
         <button class="choice-btn" data-pad="off"><span>👆</span><small>Nur wischen</small></button>
       </div>
 
-      <div class="stack" style="margin-top:20px">
-        <button class="big-btn" id="btn-go">▶️ Los</button>
-        <div class="row">
-          <button class="big-btn plain" id="btn-sound" aria-label="Ton an/aus">🔊 Ton</button>
-          <a class="big-btn plain" id="btn-home" href="../">🏠 Spiele</a>
-        </div>
-      </div>
+      <button class="big-btn" id="btn-go" style="margin-top:20px">▶️ Los</button>
     </div>
   </div>
 
@@ -378,10 +399,7 @@ body.game {
       <div class="big-emoji" id="over-emoji">💥</div>
       <h2 id="over-title">Vorbei!</h2>
       <p class="score-line" id="over-text"></p>
-      <div class="row">
-        <button class="big-btn soft" id="btn-over-settings" aria-label="Einstellungen">⚙️</button>
-        <button class="big-btn" id="btn-again" style="flex:3">🔄 Nochmal</button>
-      </div>
+      <button class="big-btn" id="btn-again">🔄 Nochmal</button>
     </div>
   </div>
 
@@ -389,6 +407,53 @@ body.game {
 
   <script>
   'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+SPG.render();
+/* SPG-JS:END */
 
   const $ = (id) => document.getElementById(id);
 
@@ -410,7 +475,6 @@ body.game {
      =================================================================== */
   const Sound = {
     ctx: null,
-    on: Store.get('sound', true),
     init() {
       if (!this.ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -419,6 +483,7 @@ body.game {
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
     tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
       const t = this.ctx.currentTime + start;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -431,7 +496,7 @@ body.game {
       osc.start(t);
       osc.stop(t + dur + 0.02);
     },
-    ready() { this.init(); return this.on && this.ctx; },
+    ready() { this.init(); return !!this.ctx; },
     click() { if (this.ready()) this.tone(500, 0, 0.06, 'sine', 0.12, 650); },
     eat() { if (this.ready()) { this.tone(520, 0, 0.08, 'square', 0.08, 780); this.tone(780, 0.06, 0.1, 'sine', 0.2, 1040); } },
     crash() { if (this.ready()) { this.tone(300, 0, 0.45, 'sawtooth', 0.18, 60); this.tone(120, 0.05, 0.4, 'square', 0.1, 50); } },
@@ -517,7 +582,7 @@ body.game {
     state: 'ready',
     speed: Store.get('speed', 'mid'),
     walls: Store.get('walls', 'wall'),
-    pad: Store.get('pad', 'on'),
+    pad: ({ on: 'right' })[Store.get('pad', 'right')] || Store.get('pad', 'right'),   // left | right | off
     snake: [],
     dir: 'right',
     queue: [],
@@ -640,10 +705,11 @@ body.game {
     updateHud() {
       $('score').textContent = this.score;
       $('best').textContent = this.best;
-      const btn = $('btn-pause');
-      btn.textContent = this.state === 'paused' ? '▶️' : '⏸️';
-      btn.setAttribute('aria-label', this.state === 'paused' ? 'Weiter' : 'Pause');
-      btn.classList.toggle('active', this.state === 'paused');
+      for (const btn of [$('btn-pause'), $('btn-pause-big')]) {
+        btn.textContent = this.state === 'paused' ? '▶️' : '⏸️';
+        btn.setAttribute('aria-label', this.state === 'paused' ? 'Weiter' : 'Pause');
+        btn.classList.toggle('active', this.state === 'paused');
+      }
     },
 
     /* ---------- Schleife ---------- */
@@ -777,7 +843,7 @@ body.game {
       let start = null, moved = false;
       const stage = $('stage');
       stage.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('#pad')) return;
+        if (e.target.closest('.controls')) return;
         start = { x: e.clientX, y: e.clientY, id: e.pointerId };
         moved = false;
       });
@@ -824,22 +890,22 @@ body.game {
     },
 
     togglePause() {
+      if (document.querySelector('.overlay:not([hidden])')) return;
       if (this.state === 'run') this.pause();
       else if (this.state === 'paused') this.resume();
     },
 
     bindUi() {
-      $('btn-pause').addEventListener('click', () => { Sound.click(); this.togglePause(); });
+      for (const id of ['btn-pause', 'btn-pause-big']) $(id).addEventListener('click', () => { Sound.click(); this.togglePause(); });
       $('btn-new').addEventListener('click', () => {
         Sound.click();
+        // 🔄 = neue Runde über den Startbildschirm (Tempo, Rand, Tasten)
         if (this.inProgress()) { this.pause(); $('confirm').hidden = false; }
-        else this.restart();
+        else { this.restart(); this.openSetup(); }
       });
       $('confirm-no').addEventListener('click', () => { Sound.click(); $('confirm').hidden = true; });
-      $('confirm-yes').addEventListener('click', () => { Sound.click(); $('confirm').hidden = true; this.restart(); });
+      $('confirm-yes').addEventListener('click', () => { Sound.click(); $('confirm').hidden = true; this.restart(); this.openSetup(); });
 
-      $('btn-settings').addEventListener('click', () => { Sound.click(); this.pause(); this.openSetup(); });
-      $('btn-over-settings').addEventListener('click', () => { Sound.click(); $('over').hidden = true; this.restart(); this.openSetup(); });
       $('btn-again').addEventListener('click', () => { Sound.click(); this.restart(); });
       $('btn-go').addEventListener('click', () => {
         Sound.init(); Sound.click();
@@ -857,11 +923,6 @@ body.game {
       for (const b of document.querySelectorAll('#pad-grid [data-pad]')) {
         b.addEventListener('click', () => { Sound.click(); this.pad = b.dataset.pad; Store.set('pad', this.pad); this.applyPad(); this.refreshSetup(); });
       }
-      $('btn-sound').addEventListener('click', () => {
-        Sound.on = !Sound.on; Store.set('sound', Sound.on); Sound.click(); this.refreshSetup();
-      });
-
-      if (location.protocol === 'file:') $('btn-home').hidden = true;
     },
 
     restart() {
@@ -876,12 +937,14 @@ body.game {
       for (const b of document.querySelectorAll('[data-speed]')) b.classList.toggle('selected', b.dataset.speed === this.speed);
       for (const b of document.querySelectorAll('[data-walls]')) b.classList.toggle('selected', b.dataset.walls === this.walls);
       for (const b of document.querySelectorAll('[data-pad]')) b.classList.toggle('selected', b.dataset.pad === this.pad);
-      $('btn-sound').textContent = Sound.on ? '🔊 Ton' : '🔇 Ton';
       const changed = this.key !== this.speed + '-' + this.walls;
       $('btn-go').textContent = this.inProgress() && !changed ? '▶️ Weiter' : '▶️ Los';
     },
 
-    applyPad() { document.body.classList.toggle('no-pad', this.pad === 'off'); }
+    applyPad() {
+      document.body.classList.toggle('no-pad', this.pad === 'off');
+      document.body.classList.toggle('pad-left', this.pad === 'left');
+    }
   };
 
   /* ---------- Hilfen ---------- */
