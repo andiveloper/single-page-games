@@ -18,8 +18,10 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
      /* ab hier nur spielspezifisches CSS */
    </style>
    ```
-   `node tools/design.mjs --write` füllt bzw. aktualisiert ihn. `node tools/design.mjs` prüft alles (läuft auch in CI).
-   Das Design wird nur in `design/spg.css` geändert, danach `--write`.
+   Genauso steht der Block aus [`design/spg.js`](design/spg.js) direkt nach `'use strict';` im `<script>`
+   (`/* SPG-JS:BEGIN */ … /* SPG-JS:END */`, liefert den Ton-aus-Knopf).
+   `node tools/design.mjs --write` füllt bzw. aktualisiert beide. `node tools/design.mjs` prüft alles (läuft auch in CI).
+   Das Design wird nur in `design/spg.css` / `design/spg.js` geändert, danach `--write`.
 
 ## Zwei Kategorien
 
@@ -29,15 +31,30 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
 | Farbe | warm: Orange/Gelb | kühl: Indigo/Violett |
 | Text | praktisch keiner: Emoji, Symbole, Ton, Vibration | kurze Wörter erlaubt (Punkte, „Neu“, Stufe), keine Absätze |
 | Bedienung | tippen, ziehen; nichts kann „kaputtgehen“ | Wischen, langes Drücken, Tastatur am Tablet ok |
-| Einstellungen | hinter ⚙️, gedacht für Eltern | ⚙️ oder direkt im Startdialog |
+| Einstellungen | im Startbildschirm, Schritt für Schritt mit großen Knöpfen | im Startbildschirm, kurze Wörter erlaubt |
 | Verlieren | gibt es nicht, nur Lob | ja, mit „Nochmal“-Knopf |
 
 `body.game` macht die Seite zur festen Vollbildfläche (kein Scrollen, Zoomen, Markieren, Pull-to-Refresh).
 
 ## Bausteine (aus `spg.css`)
 
-- **Kopfleiste** `header.topbar` mit `h1` (Emoji + kurzer Titel) und `.actions` voller `.icon-btn`.
-  Typisch: 🔄 Neu, ⚙️ Einstellungen. Ü6 zusätzlich Punkte/Level im Titel.
+- **Kopfleiste** `header.topbar` mit `h1` (Emoji + kurzer Titel, Ü6 auch Punkte) und in **jedem Spiel gleich**:
+  ```html
+  <div class="actions">
+    <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+    <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+    <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+    <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
+  </div>
+  ```
+  🏠, 🔊 und ⛶ funktionieren allein durch `spg.js` (🏠 versteckt sich bei `file:`, ⛶ wo es kein Vollbild gibt).
+  🔄 verdrahtet das Spiel selbst. **Kein ⚙️** (prüft `tools/design.mjs`).
+  Einzige Ausnahme: ein Knopf, den man mitten im Spiel sofort braucht (⏸️ bei Snake), steht davor ganz links.
+- **Spielknöpfe** (↩️ Zurück, 🚩 Flagge, 👁️ Vorlage …) stehen in `.gamebar` unter dem Spielfeld (große `.icon-btn`).
+- **Startbildschirm** statt Einstellungen: `.overlay` mit großen Auswahlknöpfen, erscheint beim Öffnen und nach 🔄
+  (vorher Rückfrage, wenn ein Spiel läuft). Mehrere Einstellungen nacheinander als Schritte mit ⬅️ zurück
+  (z. B. Foto-Puzzle: 📷 Eigenes Foto / 🦕 Beispielfoto → Anzahl Teile; Seifenblasen: Spiel → Tempo).
+  Die letzte Auswahl startet das Spiel. ✖️ schließt ihn und spielt weiter.
 - **Knöpfe** `.icon-btn` (quadratisch, Emoji), `.icon-btn.active` (eingeschaltet),
   `.big-btn` (Hauptaktion, Farbverlauf der Kategorie), `.big-btn.success` (Ja / Weiter), `.big-btn.plain` (Nein / Abbrechen),
   `.big-btn.soft` (Nebenaktion). Mehrere nebeneinander in `.row`, untereinander in `.stack`.
@@ -52,10 +69,11 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
 
 - **Rückmeldung bei jeder Aktion:** kurzer Ton (Web Audio), bei Erfolg `navigator.vibrate(30)`, beim Gewinnen Konfetti + Dialog.
   Vorlage: `Sound`, `buzz` und `Confetti` in [`foto-puzzle/index.html`](foto-puzzle/index.html) kopieren.
+- **Ton aus:** `Sound.tone()` (und jede andere Tonquelle) beginnt mit `if (SPG.muted) return;`.
+  Ton ist **anfangs aus** und der Zustand gilt für alle Spiele gemeinsam (`localStorage` `spg-muted`). Auch Sprachausgabe hält sich daran.
 - **Neustart mitten im Spiel** fragt nach (Dialog mit ✖️ / ✔️).
 - **Kein Kontextmenü** bei langem Drücken (`contextmenu` → `preventDefault`), außer das Spiel braucht es nicht anders.
 - **Drehen** des Geräts baut das Spielfeld neu auf, ohne Fortschritt zu verlieren.
-- **🏠 Alle Spiele** (`href="../"`) gehört in den ⚙️-Dialog und wird bei `location.protocol === 'file:'` ausgeblendet.
 - `prefers-reduced-motion` wird von `spg.css` berücksichtigt.
 - Speichern (Highscore, Einstellungen) nur über `localStorage` in `try/catch`.
 

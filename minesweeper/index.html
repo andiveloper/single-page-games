@@ -109,6 +109,10 @@ body.game {
   text-overflow: ellipsis;
 }
 .topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
 @media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
 
 /* ---------- Knöpfe ---------- */
@@ -130,6 +134,8 @@ body.game {
 }
 .icon-btn:active { transform: scale(0.9); }
 .icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
 
 .big-btn {
   width: 100%;
@@ -200,6 +206,10 @@ body.game {
   -webkit-backdrop-filter: blur(4px);
 }
 .overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
 .dialog {
   width: min(100%, 420px);
   max-height: calc(100dvh - 32px);
@@ -307,9 +317,10 @@ body.game {
       <span class="stat" aria-label="Zeit">⏱️ <span id="time">0</span></span>
     </h1>
     <div class="actions">
-      <button class="icon-btn" id="btn-flag" aria-label="Flaggen-Modus" aria-pressed="false">🚩</button>
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
       <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
-      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen">⚙️</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
     </div>
   </header>
 
@@ -317,10 +328,15 @@ body.game {
     <div id="board" role="grid" aria-label="Minenfeld"></div>
   </main>
 
-  <!-- Einstellungen -->
-  <div class="overlay" id="settings" hidden>
-    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <h2 id="settings-title">Einstellungen</h2>
+  <div class="gamebar">
+    <button class="icon-btn" id="btn-flag" aria-label="Flaggen-Modus" aria-pressed="false">🚩</button>
+  </div>
+
+  <!-- Startbildschirm: Stufe wählen startet das Spiel -->
+  <div class="overlay" id="start" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="start-title">
+      <div class="big-emoji">💣</div>
+      <h2 id="start-title">Neues Spiel</h2>
 
       <div class="section-label">Stufe</div>
       <div class="choice-grid" id="level-grid"></div>
@@ -335,8 +351,7 @@ body.game {
         <li><span>🔢</span> Zahl tippen: Nachbarn aufdecken</li>
       </ul>
 
-      <a class="big-btn plain" id="btn-home" href="../" style="margin-top:18px">🏠 Alle Spiele</a>
-      <button class="big-btn" id="btn-close-settings" style="margin-top:12px">Fertig</button>
+      <button class="big-btn plain" id="btn-close-start" aria-label="Schließen" style="margin-top:18px">✖️</button>
     </div>
   </div>
 
@@ -371,6 +386,53 @@ body.game {
 
   <script>
   'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+SPG.render();
+/* SPG-JS:END */
 
   /* ===================================================================
      Töne (Web Audio, keine Dateien nötig)
@@ -385,6 +447,7 @@ body.game {
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
     tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
       const t = this.ctx.currentTime + start;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -491,7 +554,6 @@ body.game {
 
   const Game = {
     level: store.get('level', 'easy'),
-    pendingLevel: null,
     cells: [],         // { mine, n, open, flag, el }
     rows: 0, cols: 0, mines: 0,
     state: 'ready',    // ready | playing | won | lost
@@ -512,19 +574,17 @@ body.game {
 
       $('btn-flag').addEventListener('click', () => this.toggleFlagMode());
       $('btn-new').addEventListener('click', () => this.askNew());
-      $('btn-settings').addEventListener('click', () => this.openSettings());
-      $('btn-close-settings').addEventListener('click', () => this.closeSettings());
-      $('settings').addEventListener('click', (e) => { if (e.target.id === 'settings') this.closeSettings(); });
-      $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; this.pendingLevel = null; });
-      $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.applyPendingLevel(); this.newGame(); });
+      $('btn-close-start').addEventListener('click', () => { $('start').hidden = true; });
+      $('start').addEventListener('click', (e) => { if (e.target.id === 'start') $('start').hidden = true; });
+      $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+      $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.openStart(); });
       $('btn-again').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); this.newGame(); });
       $('btn-look').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); });
-      if (location.protocol === 'file:') $('btn-home').hidden = true;
 
       document.addEventListener('keydown', (e) => {
         if (e.key === 'f' || e.key === 'F') this.toggleFlagMode();
         else if (e.key === 'n' || e.key === 'N') this.askNew();
-        else if (e.key === 'Escape') { $('settings').hidden = true; $('confirm').hidden = true; }
+        else if (e.key === 'Escape') { $('start').hidden = true; $('confirm').hidden = true; }
       });
       document.addEventListener('visibilitychange', () => {
         if (this.state !== 'playing') return;
@@ -536,6 +596,7 @@ body.game {
 
       this.buildLevelGrid();
       this.newGame();
+      this.openStart();
     },
 
     /* ---------- Aufbau ---------- */
@@ -802,7 +863,7 @@ body.game {
     /* ---------- Dialoge ---------- */
     askNew() {
       if (this.state === 'playing') $('confirm').hidden = false;
-      else { $('end').hidden = true; Confetti.stop(); this.newGame(); }
+      else this.openStart();
     },
     buildLevelGrid() {
       const grid = $('level-grid');
@@ -812,31 +873,24 @@ body.game {
         b.className = 'choice-btn';
         b.dataset.level = key;
         b.innerHTML = `<span>${L.emoji}</span><span>${L.label}</span><small>${L.cols}×${L.rows} · ${L.mines} 💣</small>`;
-        b.addEventListener('click', () => { this.pendingLevel = key; this.refreshSettings(); Sound.flag(); });
+        b.addEventListener('click', () => {
+          Sound.flag();
+          this.level = key;
+          store.set('level', key);
+          $('start').hidden = true;
+          $('end').hidden = true;
+          Confetti.stop();
+          this.newGame();
+        });
         grid.appendChild(b);
       }
     },
-    refreshSettings() {
-      const sel = this.pendingLevel || this.level;
-      for (const b of $('level-grid').children) b.classList.toggle('selected', b.dataset.level === sel);
+    openStart() {
+      for (const b of $('level-grid').children) b.classList.toggle('selected', b.dataset.level === this.level);
       const best = store.get('best', {});
       $('best-times').textContent = Object.entries(LEVELS)
         .map(([k, L]) => `${L.emoji} ${best[k] != null ? this.fmt(best[k]) : '–'}`).join('   ');
-    },
-    openSettings() { this.pendingLevel = null; this.refreshSettings(); $('settings').hidden = false; },
-    closeSettings() {
-      $('settings').hidden = true;
-      if (!this.pendingLevel || this.pendingLevel === this.level) { this.pendingLevel = null; return; }
-      if (this.state === 'playing') { $('confirm').hidden = false; return; }
-      this.applyPendingLevel();
-      $('end').hidden = true;
-      this.newGame();
-    },
-    applyPendingLevel() {
-      if (!this.pendingLevel) return;
-      this.level = this.pendingLevel;
-      this.pendingLevel = null;
-      store.set('level', this.level);
+      $('start').hidden = false;
     }
   };
 

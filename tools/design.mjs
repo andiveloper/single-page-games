@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Prüft (Standard) oder aktualisiert (--write) alle Seiten:
 //  - der Block zwischen SPG-DESIGN:BEGIN/END entspricht design/spg.css
+//  - Spiele: der Block zwischen SPG-JS:BEGIN/END entspricht design/spg.js, einheitliche Kopfleiste
 //  - keine externen Ressourcen (Spiele müssen im Flugmodus laufen)
 //  - Grundlagen für Handy: lang, viewport, Kategorie-Klasse u6/ue6
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
@@ -13,6 +14,10 @@ const css = readFileSync(join(root, 'design/spg.css'), 'utf8').trim();
 const BEGIN = '/* SPG-DESIGN:BEGIN */';
 const END = '/* SPG-DESIGN:END */';
 const block = `${BEGIN}\n${css}\n${END}`;
+const js = readFileSync(join(root, 'design/spg.js'), 'utf8').trim();
+const JS_BEGIN = '/* SPG-JS:BEGIN */';
+const JS_END = '/* SPG-JS:END */';
+const jsBlock = `${JS_BEGIN}\n${js}\n${JS_END}`;
 
 const pages = ['index.html'];
 for (const d of readdirSync(root, { withFileTypes: true })) {
@@ -35,6 +40,24 @@ for (const page of pages) {
       if (write) { html = html.slice(0, a) + block + html.slice(b + END.length); writeFileSync(file, html); console.log(`aktualisiert: ${page}`); }
       else fail('Design-Block ist veraltet, `node tools/design.mjs --write` ausführen');
     }
+  }
+
+  // Spiele: gemeinsames JS (Ton-aus-Knopf) am Anfang des <script>
+  if (page !== 'index.html') {
+    const c = html.indexOf(JS_BEGIN), d = html.indexOf(JS_END);
+    if (c < 0 || d < c) {
+      fail(`JS-Block fehlt (${JS_BEGIN} ... ${JS_END} im <script> einfügen)`);
+    } else if (html.slice(c, d + JS_END.length) !== jsBlock) {
+      if (write) { html = html.slice(0, c) + jsBlock + html.slice(d + JS_END.length); writeFileSync(file, html); console.log(`aktualisiert (JS): ${page}`); }
+      else fail('JS-Block ist veraltet, `node tools/design.mjs --write` ausführen');
+    }
+    // Einheitliche Kopfleiste: 🏠 🔊 🔄 ⛶ in dieser Reihenfolge, kein ⚙️
+    const top = (html.match(/<header class="topbar">([\s\S]*?)<\/header>/) || [])[1] || '';
+    const order = ['home-btn', 'mute-btn', 'id="btn-new"', 'fs-btn'].map((k) => top.indexOf(k));
+    if (order.some((i) => i < 0) || order.some((i, k) => k && i < order[k - 1])) {
+      fail('Kopfleiste braucht 🏠 .home-btn, 🔊 .mute-btn, 🔄 #btn-new, ⛶ .fs-btn in dieser Reihenfolge');
+    }
+    if (/⚙️/.test(html)) fail('⚙️-Einstellungen gibt es nicht mehr, Einstellungen gehören in den Startbildschirm hinter 🔄');
   }
 
   // Externe Ressourcen: alles, was der Browser beim Öffnen nachladen würde

@@ -98,6 +98,10 @@ body.game {
   text-overflow: ellipsis;
 }
 .topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
 @media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
 
 /* ---------- Knöpfe ---------- */
@@ -119,6 +123,8 @@ body.game {
 }
 .icon-btn:active { transform: scale(0.9); }
 .icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
 
 .big-btn {
   width: 100%;
@@ -189,6 +195,10 @@ body.game {
   -webkit-backdrop-filter: blur(4px);
 }
 .overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
 .dialog {
   width: min(100%, 420px);
   max-height: calc(100dvh - 32px);
