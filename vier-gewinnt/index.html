@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e0e7ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Vier gewinnt 🔴</title>
+  <style>
+/* SPG-DESIGN:BEGIN */
+/* Single-Page Games: gemeinsame Designsprache v1
+   Quelle: design/spg.css. Nicht in den Spielen von Hand ändern,
+   sondern hier ändern und `node tools/design.mjs --write` ausführen. */
+:root {
+  --font: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-2: rgba(255, 255, 255, 0.88);
+  --line: #e2e8f0;
+  --success: #22c55e;
+  --success-2: #34d399;
+  --danger: #ef4444;
+  --radius: 24px;
+  --radius-sm: 18px;
+  --tap: 56px;           /* Mindestgröße für Tasten (Kinderfinger) */
+  --big: 64px;           /* Höhe großer Knöpfe */
+  --gap: 12px;
+  --fs-title: clamp(1.25rem, 5vw, 1.8rem);
+  --fs-text: 1.05rem;
+}
+@media (max-width: 360px) { :root { --tap: 50px; --big: 58px; --gap: 8px; } }
+@media (min-width: 700px) and (min-height: 700px) { :root { --tap: 68px; --big: 72px; --gap: 16px; } }
+
+/* Kategorie-Farben: .u6 = bis 6 Jahre (warm), .ue6 = ab 6 / Erwachsene (kühl).
+   Auf <body> setzen; funktioniert auch auf einzelnen Karten. */
+:root, .u6 {
+  --primary: #f97316;
+  --primary-2: #f59e0b;
+  --primary-ink: #c2410c;
+  --primary-soft: #fff7ed;
+  --primary-line: #fed7aa;
+  --bg: linear-gradient(180deg, #fef3c7 0%, #ffedd5 45%, #ffe4e6 100%);
+  --shadow: 0 4px 14px rgba(194, 65, 12, 0.12);
+}
+.ue6 {
+  --primary: #6366f1;
+  --primary-2: #8b5cf6;
+  --primary-ink: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-line: #c7d2fe;
+  --bg: linear-gradient(180deg, #e0e7ff 0%, #ede9fe 50%, #fae8ff 100%);
+  --shadow: 0 4px 14px rgba(67, 56, 202, 0.14);
+}
+
+/* ---------- Grundlage ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-text);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button { font: inherit; color: inherit; touch-action: manipulation; }
+[hidden] { display: none !important; }
+
+/* Vollbild-Spielseite: kein Scrollen, Zoomen, Markieren oder Pull-to-Refresh */
+html:has(> body.game) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.game {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- Kopfleiste ---------- */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 8px 8px 0;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.topbar h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+@media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
+
+/* ---------- Knöpfe ---------- */
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-line), 0 2px 4px rgba(0, 0, 0, 0.08);
+  font-size: calc(var(--tap) * 0.48);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.1s, background 0.2s;
+}
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
+
+.big-btn {
+  width: 100%;
+  min-height: var(--big);
+  padding: 0 18px;
+  border: none;
+  border-radius: 20px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.1s;
+}
+.big-btn:active { transform: scale(0.96); }
+.big-btn.success { background: linear-gradient(90deg, var(--success-2), var(--success)); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
+.big-btn.plain { background: #f1f5f9; color: var(--ink); box-shadow: none; }
+.big-btn.soft { background: var(--primary-soft); color: var(--primary-ink); box-shadow: inset 0 0 0 2px var(--primary-line); }
+
+.row { display: flex; gap: var(--gap); }
+.row > * { flex: 1; }
+.stack { display: grid; gap: var(--gap); }
+
+/* Auswahl-Kacheln (Anzahl, Schwierigkeit, Farbe ...) */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+.choice-btn {
+  min-height: 84px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.choice-btn.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+
+/* ---------- Karten, Texte ---------- */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted { color: var(--muted); }
+.section-label { text-align: left; font-weight: 700; color: var(--muted); margin: 20px 0 8px; font-size: 0.95rem; }
+
+/* ---------- Dialoge ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+body.game .overlay { padding-top: calc(var(--tap) + 32px); }
+body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
+.dialog {
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: spg-pop-in 0.25s ease-out;
+}
+.dialog h2 { margin: 0 0 6px; font-size: 1.6rem; }
+.dialog p { margin: 0 0 18px; color: var(--muted); font-weight: 500; }
+.big-emoji { font-size: 56px; line-height: 1.1; margin-bottom: 6px; }
+@keyframes spg-pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ---------- Hinweise, Konfetti ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 3000;
+  background: #1e293b;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 600;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+.toast[hidden] { display: none; }
+.confetti { position: fixed; inset: 0; z-index: 1500; pointer-events: none; }
+.confetti[hidden] { display: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* SPG-DESIGN:END */
+
+    .topbar h1 { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+    .topbar h1 .stat {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px;
+      color: var(--primary-ink);
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .topbar h1 .stat.turn { background: var(--primary-soft); box-shadow: inset 0 0 0 2px var(--primary-line); }
+
+    #stage {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--gap);
+      padding: var(--gap) 8px 8px;
+    }
+    #turn {
+      flex: none;
+      min-height: 44px;
+      padding: 6px 18px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      box-shadow: var(--shadow);
+      font-weight: 700;
+      font-size: 1.15rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #turn.thinking .dots { animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: 0.2; } }
+
+    #board {
+      --cell: 44px;
+      --g: 6px;
+      --red: #ef4444;
+      --red-2: #f87171;
+      --yellow: #facc15;
+      --yellow-2: #fde047;
+      flex: none;
+      display: grid;
+      grid-template-columns: repeat(7, var(--cell));
+      grid-auto-rows: var(--cell);
+      gap: var(--g);
+      padding: calc(var(--g) * 1.6);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, var(--primary), var(--primary-2));
+      box-shadow: var(--shadow), inset 0 -6px 0 rgba(30, 27, 75, 0.25);
+      touch-action: none;
+      cursor: pointer;
+    }
+    .hole {
+      position: relative;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      box-shadow: inset 0 4px 6px rgba(30, 27, 75, 0.35);
+    }
+    .disc {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .disc.p1 { background: radial-gradient(circle at 35% 30%, var(--red-2), var(--red) 60%); box-shadow: inset 0 -4px 0 rgba(127, 29, 29, 0.35), inset 0 0 0 calc(var(--cell) * 0.1) rgba(255, 255, 255, 0.12); }
+    .disc.p2 { background: radial-gradient(circle at 35% 30%, var(--yellow-2), var(--yellow) 60%); box-shadow: inset 0 -4px 0 rgba(161, 98, 7, 0.35), inset 0 0 0 calc(var(--cell) * 0.1) rgba(255, 255, 255, 0.2); }
+    .disc.ghost { opacity: 0.35; }
+    .disc.drop {
+      z-index: 2;
+      animation: drop calc(0.12s + var(--fall) * 0.05s) cubic-bezier(0.5, 0, 1, 1), land 0.18s ease-out calc(0.12s + var(--fall) * 0.05s);
+    }
+    @keyframes drop { from { transform: translateY(calc((var(--cell) + var(--g)) * var(--fall) * -1)); } to { transform: translateY(0); } }
+    @keyframes land { 40% { transform: translateY(calc(var(--cell) * -0.08)); } }
+    .disc.win { z-index: 3; animation: win 0.7s ease-in-out infinite alternate; box-shadow: 0 0 0 calc(var(--cell) * 0.08) #fff, 0 0 calc(var(--cell) * 0.4) #fff; }
+    @keyframes win { to { transform: scale(0.82); } }
+    #board.over .disc:not(.win) { filter: saturate(0.55) brightness(0.95); }
+
+    .disc-icon { width: 1em; height: 1em; border-radius: 50%; display: inline-block; flex: none; }
+    .disc-icon.p1 { background: radial-gradient(circle at 35% 30%, #f87171, #ef4444 60%); }
+    .disc-icon.p2 { background: radial-gradient(circle at 35% 30%, #fde047, #facc15 60%); }
+
+    .choice-btn .em { font-size: 2rem; line-height: 1; }
+    .choice-btn small { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+    .help { margin: 0; padding: 0; list-style: none; text-align: left; display: grid; gap: 6px; font-weight: 600; }
+    .help span { display: inline-block; width: 1.8em; }
+  </style>
+</head>
+<body class="game ue6">
+
+  <header class="topbar">
+    <h1>
+      <span class="stat" id="stat-1" aria-label="Punkte Rot">🔴 <span id="score-1">0</span></span>
+      <span class="stat" id="stat-2" aria-label="Punkte Gelb"><span id="icon-2">🟡</span> <span id="score-2">0</span></span>
+    </h1>
+    <div class="actions">
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <div id="turn" aria-live="polite"></div>
+    <div id="board" role="grid" aria-label="Spielfeld, 7 Spalten"></div>
+  </main>
+
+  <div class="gamebar">
+    <button class="icon-btn" id="btn-undo" aria-label="Zug zurück" disabled>↩️</button>
+  </div>
+
+  <!-- Startbildschirm: 1. Gegner, 2. Stufe (nur Computer) -->
+  <div class="overlay" id="start" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="start-title">
+      <div id="step-mode">
+        <div class="big-emoji">🔴🟡</div>
+        <h2 id="start-title">Vier gewinnt</h2>
+        <div class="section-label">Gegner</div>
+        <div class="choice-grid" id="mode-grid">
+          <button class="choice-btn" data-mode="pvp"><span class="em">👥</span>2 Spieler<small>ein Gerät</small></button>
+          <button class="choice-btn" data-mode="cpu"><span class="em">🤖</span>Computer<small>Stufe wählen</small></button>
+        </div>
+        <div class="section-label">So geht's</div>
+        <ul class="help">
+          <li><span>👆</span> Spalte tippen: Stein fällt</li>
+          <li><span>4️⃣</span> Vier in einer Reihe gewinnt</li>
+          <li><span>↔️</span> waagrecht, senkrecht, schräg</li>
+        </ul>
+        <button class="big-btn plain" id="btn-close-start" aria-label="Schließen" style="margin-top:18px">✖️</button>
+      </div>
+      <div id="step-level" hidden>
+        <div class="big-emoji">🤖</div>
+        <h2>Stufe</h2>
+        <div class="choice-grid" id="level-grid"></div>
+        <button class="big-btn plain" id="btn-back" aria-label="Zurück" style="margin-top:18px">⬅️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rückfrage bei Neustart -->
+  <div class="overlay" id="confirm" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="big-emoji">🔄</div>
+      <h2 id="confirm-title">Neues Spiel?</h2>
+      <p>Das laufende Spiel geht verloren.</p>
+      <div class="row">
+        <button class="big-btn plain" id="confirm-no" aria-label="Nein">✖️</button>
+        <button class="big-btn success" id="confirm-yes" aria-label="Ja">✔️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spielende -->
+  <div class="overlay" id="end" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="end-title">
+      <div class="big-emoji" id="end-emoji">🎉</div>
+      <h2 id="end-title">Geschafft!</h2>
+      <p id="end-text"></p>
+      <div class="stack">
+        <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+        <button class="big-btn soft" id="btn-look">👀 Feld ansehen</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="confetti" class="confetti" hidden></canvas>
+
+  <script>
+  'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+SPG.render();
+/* SPG-JS:END */
+
+  /* ===================================================================
+     Töne (Web Audio, keine Dateien nötig)
+     =================================================================== */
+  const Sound = {
+    ctx: null,
+    init() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
+      const t = this.ctx.currentTime + start;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+    // Aufprall nach der Fallzeit, Spieler 1 tiefer als Spieler 2
+    drop(p, fall) { this.init(); if (this.ctx) this.tone(p === 1 ? 300 : 400, 0.12 + fall * 0.05, 0.12, 'triangle', 0.3, p === 1 ? 180 : 240); },
+    click() { this.init(); if (this.ctx) this.tone(660, 0, 0.06, 'sine', 0.15, 880); },
+    undo() { this.init(); if (this.ctx) this.tone(520, 0, 0.1, 'sine', 0.15, 320); },
+    win() {
+      this.init();
+      if (!this.ctx) return;
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
+    },
+    lose() {
+      this.init();
+      if (!this.ctx) return;
+      [392, 330, 262].forEach((f, i) => this.tone(f, i * 0.16, 0.3, 'triangle', 0.22));
+    },
+    draw() {
+      this.init();
+      if (!this.ctx) return;
+      [392, 392].forEach((f, i) => this.tone(f, i * 0.18, 0.2, 'triangle', 0.2));
+    }
+  };
+
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  /* ===================================================================
+     Konfetti
+     =================================================================== */
+  const Confetti = {
+    canvas: document.getElementById('confetti'),
+    raf: null,
+    parts: [],
+    start() {
+      const c = this.canvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      c.style.width = innerWidth + 'px';
+      c.style.height = innerHeight + 'px';
+      c.hidden = false;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const n = Math.round(Math.min(160, innerWidth / 5));
+      this.parts = Array.from({ length: n }, () => ({
+        x: Math.random() * innerWidth,
+        y: -Math.random() * innerHeight,
+        s: Math.random() * 10 + 6,
+        c: colors[(Math.random() * colors.length) | 0],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2.5,
+        r: Math.random() * 360,
+        vr: (Math.random() - 0.5) * 10
+      }));
+      const end = performance.now() + 7000;
+      const loop = (now) => {
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of this.parts) {
+          p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.y > innerHeight + 20 && now < end) p.y = -20;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.r * Math.PI / 180);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+          ctx.restore();
+        }
+        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
+        else this.stop();
+      };
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      cancelAnimationFrame(this.raf);
+      this.canvas.hidden = true;
+    }
+  };
+
+  /* ===================================================================
+     Regeln und Computer-Gegner
+     Feld: 6 Zeilen × 7 Spalten, Index r * 7 + c, Zeile 0 ist oben.
+     =================================================================== */
+  const ROWS = 6, COLS = 7;
+  const ORDER = [3, 2, 4, 1, 5, 0, 6];   // Mitte zuerst: bessere Züge, schnelleres Alpha-Beta
+
+  // Alle 69 möglichen Vierer-Linien
+  const LINES = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+        const er = r + dr * 3, ec = c + dc * 3;
+        if (er < 0 || er >= ROWS || ec < 0 || ec >= COLS) continue;
+        LINES.push([0, 1, 2, 3].map((k) => (r + dr * k) * COLS + c + dc * k));
+      }
+    }
+  }
+
+  class Board {
+    constructor() { this.cells = new Array(ROWS * COLS).fill(0); this.heights = new Array(COLS).fill(0); this.count = 0; }
+    canPlay(c) { return this.heights[c] < ROWS; }
+    play(c, p) {
+      const r = ROWS - 1 - this.heights[c];
+      this.cells[r * COLS + c] = p;
+      this.heights[c]++;
+      this.count++;
+      return r;
+    }
+    undo(c) {
+      this.heights[c]--;
+      this.cells[(ROWS - 1 - this.heights[c]) * COLS + c] = 0;
+      this.count--;
+    }
+    full() { return this.count === ROWS * COLS; }
+    // Siegerlinie durch das Feld (r, c), sonst null
+    winAt(r, c) {
+      const p = this.cells[r * COLS + c];
+      for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+        const line = [r * COLS + c];
+        for (const s of [1, -1]) {
+          let rr = r + dr * s, cc = c + dc * s;
+          while (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && this.cells[rr * COLS + cc] === p) {
+            line.push(rr * COLS + cc);
+            rr += dr * s; cc += dc * s;
+          }
+        }
+        if (line.length >= 4) return line;
+      }
+      return null;
+    }
+  }
+
+  const AI = {
+    // Bewertung aus Sicht von p: offene Dreier und Zweier, Steine in der Mitte
+    evaluate(b, p) {
+      const o = 3 - p;
+      let s = 0;
+      for (const line of LINES) {
+        let mine = 0, theirs = 0;
+        for (const i of line) { const v = b.cells[i]; if (v === p) mine++; else if (v === o) theirs++; }
+        if (theirs === 0) s += mine === 3 ? 5 : mine === 2 ? 2 : 0;
+        else if (mine === 0) s -= theirs === 3 ? 5 : theirs === 2 ? 2 : 0;
+      }
+      for (let r = 0; r < ROWS; r++) {
+        const v = b.cells[r * COLS + 3];
+        if (v === p) s += 3; else if (v === o) s -= 3;
+      }
+      return s;
+    },
+    negamax(b, depth, alpha, beta, p) {
+      if (depth === 0) return this.evaluate(b, p);
+      let best = -Infinity, any = false;
+      for (const c of ORDER) {
+        if (!b.canPlay(c)) continue;
+        any = true;
+        const r = b.play(c, p);
+        // Schneller Sieg zählt mehr als später Sieg
+        const v = b.winAt(r, c) ? 100000 + depth : -this.negamax(b, depth - 1, -beta, -alpha, 3 - p);
+        b.undo(c);
+        if (v > best) best = v;
+        if (best > alpha) alpha = best;
+        if (alpha >= beta) break;
+      }
+      return any ? best : 0;
+    },
+    winningMove(b, p) {
+      for (const c of ORDER) {
+        if (!b.canPlay(c)) continue;
+        const r = b.play(c, p);
+        const w = b.winAt(r, c);
+        b.undo(c);
+        if (w) return c;
+      }
+      return -1;
+    },
+    choose(b, p, level) {
+      const free = ORDER.filter((c) => b.canPlay(c));
+      if (level === 0) {
+        // Leicht: gewinnt, wenn es geht, verhindert manchmal, sonst zufällig mit Hang zur Mitte
+        const win = this.winningMove(b, p);
+        if (win >= 0) return win;
+        const block = this.winningMove(b, 3 - p);
+        if (block >= 0 && Math.random() < 0.6) return block;
+        const weights = free.map((c) => 4 - Math.abs(3 - c));
+        let x = Math.random() * weights.reduce((a, w) => a + w, 0);
+        for (let i = 0; i < free.length; i++) { x -= weights[i]; if (x <= 0) return free[i]; }
+        return free[0];
+      }
+      const depth = level === 1 ? 4 : 7;
+      let best = -Infinity, moves = [];
+      for (const c of free) {
+        const r = b.play(c, p);
+        const v = b.winAt(r, c) ? 100000 + depth : -this.negamax(b, depth - 1, -Infinity, Infinity, 3 - p);
+        b.undo(c);
+        if (v > best) { best = v; moves = [c]; } else if (v === best) moves.push(c);
+      }
+      return moves[(Math.random() * moves.length) | 0];
+    }
+  };
+
+  /* ===================================================================
+     Spiel
+     =================================================================== */
+  const $ = (id) => document.getElementById(id);
+
+  const LEVELS = [
+    { label: 'Leicht', emoji: '🙂' },
+    { label: 'Mittel', emoji: '😎' },
+    { label: 'Schwer', emoji: '🤯' }
+  ];
+
+  const store = {
+    get(key, fallback) { try { const v = localStorage.getItem('vier-gewinnt.' + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+    set(key, value) { try { localStorage.setItem('vier-gewinnt.' + key, JSON.stringify(value)); } catch (e) {} }
+  };
+
+  const Game = {
+    mode: store.get('mode', 'pvp'),     // pvp | cpu
+    level: store.get('level', 1),
+    board: null,
+    holes: [],
+    discs: [],
+    history: [],       // gespielte Spalten
+    player: 1,         // wer ist dran (1 = 🔴, 2 = 🟡)
+    starter: 1,        // wer fängt an, wechselt jede Runde
+    state: 'playing',  // playing | over
+    ghost: -1,         // Vorschau-Spalte
+    pointer: null,
+    aiTimer: null,
+    scores: store.get('scores', {}),
+
+    init() {
+      if (!LEVELS[this.level]) this.level = 1;
+      if (this.mode !== 'cpu') this.mode = 'pvp';
+      const board = $('board');
+      for (let i = 0; i < ROWS * COLS; i++) {
+        const hole = document.createElement('div');
+        hole.className = 'hole';
+        hole.setAttribute('role', 'gridcell');
+        board.appendChild(hole);
+        this.holes.push(hole);
+      }
+      board.addEventListener('pointerdown', (e) => this.onDown(e));
+      board.addEventListener('pointermove', (e) => this.onMove(e));
+      board.addEventListener('pointerup', (e) => this.onUp(e));
+      board.addEventListener('pointercancel', () => { this.pointer = null; this.setGhost(-1); });
+      board.addEventListener('pointerleave', () => { if (!this.pointer) this.setGhost(-1); });
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      $('btn-undo').addEventListener('click', () => this.undo());
+      $('btn-new').addEventListener('click', () => this.askNew());
+      $('btn-close-start').addEventListener('click', () => this.closeStart());
+      $('start').addEventListener('click', (e) => { if (e.target.id === 'start') this.closeStart(); });
+      $('btn-back').addEventListener('click', () => { Sound.click(); this.showStep('mode'); });
+      $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+      $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.openStart(); });
+      $('btn-again').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); this.newGame(); });
+      $('btn-look').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); });
+
+      for (const b of $('mode-grid').children) {
+        b.addEventListener('click', () => {
+          Sound.click();
+          if (b.dataset.mode === 'cpu') { this.showStep('level'); return; }
+          this.start('pvp', this.level);
+        });
+      }
+      LEVELS.forEach((L, i) => {
+        const b = document.createElement('button');
+        b.className = 'choice-btn';
+        b.dataset.level = i;
+        b.innerHTML = `<span class="em">${L.emoji}</span>${L.label}`;
+        b.addEventListener('click', () => { Sound.click(); this.start('cpu', i); });
+        $('level-grid').appendChild(b);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { this.closeStart(); $('confirm').hidden = true; return; }
+        if (!$('start').hidden || !$('confirm').hidden || !$('end').hidden) return;
+        if (e.key >= '1' && e.key <= '7') this.move(+e.key - 1);
+        else if (e.key === 'ArrowLeft') this.setGhost(this.ghost < 0 ? 3 : Math.max(0, this.ghost - 1));
+        else if (e.key === 'ArrowRight') this.setGhost(this.ghost < 0 ? 3 : Math.min(COLS - 1, this.ghost + 1));
+        else if ((e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') && this.ghost >= 0) { e.preventDefault(); this.move(this.ghost); }
+        else if (e.key === 'Backspace' || e.key === 'u' || e.key === 'U') this.undo();
+        else if (e.key === 'n' || e.key === 'N') this.askNew();
+      });
+
+      let resizeRaf = 0;
+      window.addEventListener('resize', () => { cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(() => this.layout()); });
+
+      this.newGame(1);
+      this.openStart();
+    },
+
+    /* ---------- Aufbau ---------- */
+    get scoreKey() { return this.mode === 'cpu' ? 'cpu' + this.level : 'pvp'; },
+    isCpu(p) { return this.mode === 'cpu' && p === 2; },
+    name(p) {
+      if (this.mode === 'cpu') return p === 1 ? 'Du' : 'Computer';
+      return p === 1 ? 'Rot' : 'Gelb';
+    },
+
+    start(mode, level) {
+      const changed = mode !== this.mode || (mode === 'cpu' && level !== this.level);
+      this.mode = mode;
+      this.level = level;
+      store.set('mode', mode);
+      store.set('level', level);
+      $('start').hidden = true;
+      $('end').hidden = true;
+      Confetti.stop();
+      // Neuer Gegner: 🔴 fängt an
+      this.newGame(changed ? 1 : undefined);
+    },
+
+    // Ohne Angabe fängt nach einer gespielten Runde der andere an
+    newGame(starter) {
+      clearTimeout(this.aiTimer);
+      const played = this.board && this.board.count > 0;
+      this.starter = starter || (played ? 3 - this.starter : this.starter);
+      this.board = new Board();
+      this.history = [];
+      this.state = 'playing';
+      this.player = this.starter;
+      for (const d of this.discs) d?.remove();
+      this.discs = new Array(ROWS * COLS).fill(null);
+      this.ghost = -1;
+      this.ghostEl?.remove();
+      this.ghostEl = null;
+      $('board').classList.remove('over');
+      this.layout();
+      this.updateHud();
+      this.maybeCpu();
+    },
+
+    // Feldgröße an den freien Platz anpassen (auch nach dem Drehen)
+    layout() {
+      const stage = $('stage');
+      const cs = getComputedStyle(stage);
+      const gap = parseFloat(cs.rowGap) || 12;
+      const w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - $('turn').offsetHeight - gap;
+      // Breite = 7 Felder + 6 Lücken + 2 Ränder; Lücke = 12 % eines Feldes, Rand = 1,6 Lücken
+      const g = 0.12;
+      const cellW = w / (COLS + (COLS - 1) * g + 3.2 * g);
+      const cellH = h / (ROWS + (ROWS - 1) * g + 3.2 * g);
+      const cell = Math.max(28, Math.min(96, Math.floor(Math.min(cellW, cellH))));
+      const board = $('board');
+      board.style.setProperty('--cell', cell + 'px');
+      board.style.setProperty('--g', Math.max(4, Math.round(cell * g)) + 'px');
+    },
+
+    /* ---------- Eingabe ---------- */
+    colFromEvent(e) {
+      const rect = $('board').getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      return Math.max(0, Math.min(COLS - 1, Math.floor(x * COLS)));
+    },
+    canHumanMove() { return this.state === 'playing' && !this.isCpu(this.player); },
+    onDown(e) {
+      if (e.button > 0 || !this.canHumanMove()) return;
+      Sound.init();
+      this.pointer = e.pointerId;
+      this.setGhost(this.colFromEvent(e));
+    },
+    onMove(e) {
+      if (!this.canHumanMove()) return;
+      if (this.pointer === null && e.pointerType !== 'mouse') return;
+      this.setGhost(this.colFromEvent(e));
+    },
+    onUp(e) {
+      if (this.pointer !== e.pointerId) return;
+      this.pointer = null;
+      if (!this.canHumanMove()) return;
+      const c = this.colFromEvent(e);
+      if (e.pointerType !== 'mouse') this.setGhost(-1);
+      this.move(c);
+    },
+
+    // Halbtransparenter Stein dort, wo er landen würde
+    setGhost(c) {
+      this.ghost = c;
+      this.ghostEl?.remove();
+      this.ghostEl = null;
+      if (c < 0 || !this.canHumanMove() || !this.board.canPlay(c)) return;
+      const r = ROWS - 1 - this.board.heights[c];
+      const el = document.createElement('div');
+      el.className = `disc ghost p${this.player}`;
+      this.holes[r * COLS + c].appendChild(el);
+      this.ghostEl = el;
+    },
+
+    /* ---------- Züge ---------- */
+    move(c) {
+      if (this.state !== 'playing' || !this.board.canPlay(c)) return;
+      const p = this.player;
+      const r = this.board.play(c, p);
+      this.history.push(c);
+      const i = r * COLS + c;
+      const disc = document.createElement('div');
+      disc.className = `disc p${p} drop`;
+      disc.style.setProperty('--fall', r + 1);
+      this.holes[i].appendChild(disc);
+      this.discs[i] = disc;
+      this.holes[i].setAttribute('aria-label', p === 1 ? 'Rot' : 'Gelb');
+      Sound.drop(p, r + 1);
+      buzz(15);
+
+      const line = this.board.winAt(r, c);
+      if (line) { this.finish(p, line, r + 1); return; }
+      if (this.board.full()) { this.finish(0, null, r + 1); return; }
+      this.player = 3 - p;
+      const keep = this.ghost;
+      this.updateHud();
+      if (keep >= 0 && !this.isCpu(this.player)) this.setGhost(keep); else this.setGhost(-1);
+      this.maybeCpu();
+    },
+
+    maybeCpu() {
+      if (this.state !== 'playing' || !this.isCpu(this.player)) return;
+      const level = this.level;
+      // Kurze Denkpause, damit der eigene Stein erst landet
+      this.aiTimer = setTimeout(() => {
+        if (this.state !== 'playing' || !this.isCpu(this.player)) return;
+        const t = performance.now();
+        const c = AI.choose(this.board, 2, level);
+        const wait = Math.max(0, 350 - (performance.now() - t));
+        this.aiTimer = setTimeout(() => this.move(c), wait);
+      }, 300);
+    },
+
+    undo() {
+      if ($('btn-undo').disabled) return;
+      clearTimeout(this.aiTimer);
+      // Gegen den Computer bis zum eigenen Zug zurück
+      do {
+        const c = this.history.pop();
+        this.board.undo(c);
+        const r = ROWS - 1 - this.board.heights[c];
+        const i = r * COLS + c;
+        this.discs[i]?.remove();
+        this.discs[i] = null;
+        this.holes[i].removeAttribute('aria-label');
+        this.player = 3 - this.player;
+      } while (this.history.length && this.isCpu(this.player));
+      Sound.undo();
+      this.setGhost(-1);
+      this.updateHud();
+      this.maybeCpu();
+    },
+
+    finish(winner, line, fall) {
+      this.state = 'over';
+      clearTimeout(this.aiTimer);
+      this.setGhost(-1);
+      const s = this.scores[this.scoreKey] || [0, 0];
+      if (winner) { s[winner - 1]++; this.scores[this.scoreKey] = s; store.set('scores', this.scores); }
+      this.updateHud();
+      const landed = 120 + fall * 50 + 180;
+      setTimeout(() => {
+        if (this.state !== 'over') return;
+        $('board').classList.add('over');
+        if (line) for (const i of line) this.discs[i]?.classList.add('win');
+      }, landed);
+
+      const humanWon = winner && !this.isCpu(winner);
+      if (!winner) {
+        $('end-emoji').textContent = '🤝';
+        $('end-title').textContent = 'Unentschieden';
+        Sound.draw();
+      } else if (this.mode === 'cpu' && !humanWon) {
+        $('end-emoji').textContent = '🤖';
+        $('end-title').textContent = 'Computer gewinnt';
+        Sound.lose();
+      } else {
+        $('end-emoji').textContent = (winner === 1 ? '🔴' : '🟡') + '🎉';
+        $('end-title').textContent = this.mode === 'cpu' ? 'Gewonnen!' : `${this.name(winner)} gewinnt!`;
+        Sound.win();
+        buzz([60, 60, 120]);
+      }
+      $('end-text').textContent = `${this.name(1)} ${s[0]} : ${s[1]} ${this.name(2)}`;
+      setTimeout(() => {
+        if (this.state !== 'over') return;
+        if (humanWon) Confetti.start();
+        $('end').hidden = false;
+      }, landed + 700);
+    },
+
+    /* ---------- Anzeige ---------- */
+    updateHud() {
+      const s = this.scores[this.scoreKey] || [0, 0];
+      $('score-1').textContent = s[0];
+      $('score-2').textContent = s[1];
+      $('icon-2').textContent = this.mode === 'cpu' ? '🤖' : '🟡';
+      $('stat-1').setAttribute('aria-label', `Punkte ${this.name(1)}`);
+      $('stat-2').setAttribute('aria-label', `Punkte ${this.name(2)}`);
+      const playing = this.state === 'playing';
+      $('stat-1').classList.toggle('turn', playing && this.player === 1);
+      $('stat-2').classList.toggle('turn', playing && this.player === 2);
+      // Der erste Zug des Computers lässt sich nicht zurücknehmen
+      $('btn-undo').disabled = !playing || this.history.length <= (this.mode === 'cpu' && this.starter === 2 ? 1 : 0);
+
+      const turn = $('turn');
+      turn.classList.toggle('thinking', playing && this.isCpu(this.player));
+      const icon = `<span class="disc-icon p${this.player}"></span>`;
+      if (!playing) turn.innerHTML = '🏁 Ende';
+      else if (this.isCpu(this.player)) turn.innerHTML = `${icon} 🤖 denkt<span class="dots">…</span>`;
+      else if (this.mode === 'cpu') turn.innerHTML = `${icon} Du bist dran`;
+      else turn.innerHTML = `${icon} ${this.name(this.player)} ist dran`;
+    },
+
+    /* ---------- Dialoge ---------- */
+    askNew() {
+      if (this.state === 'playing' && this.history.length) $('confirm').hidden = false;
+      else this.openStart();
+    },
+    showStep(step) {
+      $('step-mode').hidden = step !== 'mode';
+      $('step-level').hidden = step !== 'level';
+    },
+    openStart() {
+      for (const b of $('mode-grid').children) b.classList.toggle('selected', b.dataset.mode === this.mode);
+      for (const b of $('level-grid').children) b.classList.toggle('selected', this.mode === 'cpu' && +b.dataset.level === this.level);
+      this.showStep('mode');
+      $('start').hidden = false;
+    },
+    closeStart() {
+      $('start').hidden = true;
+      // Nach 🔄 ohne Auswahl: neue Runde mit den bisherigen Einstellungen
+      if (this.state === 'over') { $('end').hidden = true; Confetti.stop(); this.newGame(); }
+    }
+  };
+
+  Game.init();
+  </script>
+</body>
+</html>
