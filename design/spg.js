@@ -42,4 +42,12 @@ if (location.protocol === 'file:') for (const a of document.querySelectorAll('.h
 if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
   for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
 }
+// Dialoge beginnen unter der Kopfleiste, die am schmalen Handy zweireihig ist.
+const spgTop = document.querySelector('.topbar');
+if (spgTop) {
+  const setTop = () => document.documentElement.style.setProperty('--spg-top', Math.ceil(spgTop.getBoundingClientRect().bottom) + 'px');
+  setTop();
+  if (window.ResizeObserver) new ResizeObserver(setTop).observe(spgTop);
+  window.addEventListener('resize', setTop);
+}
 SPG.render();

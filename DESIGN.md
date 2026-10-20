@@ -38,7 +38,11 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
 
 ## Bausteine (aus `spg.css`)
 
-- **Kopfleiste** `header.topbar` mit `h1` (Emoji + kurzer Titel, Ü6 auch Punkte) und in **jedem Spiel gleich**:
+- **Kopfleiste** `header.topbar` enthält nur `h1` (Emoji + kurzer Titel bzw. Spielstand: Punkte, Leben, Rekord …)
+  und `.actions`. Am schmalen Handy im Hochformat (unter 600 px Breite) stehen die Knöpfe oben in einer eigenen Reihe
+  und das `h1` darunter in voller Breite, damit der Spielstand nie hinter den Knöpfen verschwindet.
+  Quer und am Tablet ist alles eine Reihe. Den Spielstand deshalb nicht am Handy ausblenden.
+  `.actions` ist in **jedem Spiel gleich**:
   ```html
   <div class="actions">
     <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
