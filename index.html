@@ -112,6 +112,13 @@ body.game {
 .gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
 .icon-btn:disabled { opacity: 0.4; cursor: default; }
 @media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
+/* Schmales Handy (hoch): die Knöpfe bekommen oben eine eigene Reihe, darunter steht der Spielstand (h1)
+   in voller Breite. So verschwinden Punkte, Leben usw. nie hinter den Knöpfen. Quer und am Tablet: eine Reihe. */
+@media (max-width: 599px) {
+  .topbar { flex-wrap: wrap; justify-content: center; row-gap: 2px; padding: 6px; }
+  .topbar .actions { order: -1; width: 100%; justify-content: space-between; }
+  .topbar h1 { flex: 1 1 100%; padding: 0 8px 2px; text-align: center; justify-content: center; line-height: 1.35; }
+}
 
 /* ---------- Knöpfe ---------- */
 .icon-btn {
@@ -206,8 +213,9 @@ body.game {
 .overlay[hidden] { display: none; }
 /* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
 body.game .topbar { position: relative; z-index: 2100; }
-body.game .overlay { padding-top: calc(var(--tap) + 32px); }
-body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
+/* --spg-top = Unterkante der Kopfleiste, setzt spg.js (ein- oder zweireihig) */
+body.game .overlay { padding-top: calc(var(--spg-top, calc(var(--tap) + 20px)) + 12px); }
+body.game .dialog { max-height: calc(100dvh - var(--spg-top, calc(var(--tap) + 20px)) - 28px); }
 .dialog {
   width: min(100%, 420px);
   max-height: calc(100dvh - 32px);

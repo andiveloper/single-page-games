@@ -57,6 +57,9 @@ for (const page of pages) {
     if (order.some((i) => i < 0) || order.some((i, k) => k && i < order[k - 1])) {
       fail('Kopfleiste braucht 🏠 .home-btn, 🔊 .mute-btn, 🔄 #btn-new, ⛶ .fs-btn in dieser Reihenfolge');
     }
+    // Spielstand (Punkte, Leben …) steht im h1, sonst nichts außer .actions: nur so bekommt er am Handy eine eigene Reihe
+    const rest = top.replace(/<h1\b[\s\S]*?<\/h1>/, '').replace(/<div class="actions">[\s\S]*?<\/div>/, '').trim();
+    if (!/<h1\b/.test(top) || rest) fail('Kopfleiste darf nur h1 (Titel/Spielstand) und div.actions enthalten');
     if (/⚙️/.test(html)) fail('⚙️-Einstellungen gibt es nicht mehr, Einstellungen gehören in den Startbildschirm hinter 🔄');
   }
 
