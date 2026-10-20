@@ -353,7 +353,7 @@ body.game .dialog { max-height: calc(100dvh - var(--tap) - 48px); }
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
       <div class="big-emoji">🧱</div>
       <h2 id="setup-title">Tetris</h2>
-      <p>Tippen zum Drehen, wischen zum Schieben. Volle Reihen verschwinden!</p>
+      <p>Tippen zum Drehen, wischen zum Schieben, lange drücken zum Fallen. Volle Reihen verschwinden!</p>
 
       <div class="section-label">Tempo</div>
       <div class="choice-grid" id="speed-grid">
@@ -977,12 +977,25 @@ SPG.render();
     /* ---------- Bedienung ---------- */
     bindInput() {
       // Auf dem Spielfeld: tippen = drehen, seitlich ziehen = schieben (Zelle für Zelle),
-      // nach unten ziehen = schneller, schnell nach unten wischen = ganz runter
+      // nach unten ziehen = schneller, schnell nach unten wischen = ganz runter,
+      // lange drücken = Stein fällt schnell, solange der Finger liegt
       let start = null;
       const stage = $('stage');
+      const stopHold = (s) => { clearTimeout(s.hold); s.hold = null; };
       stage.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.controls')) return;
-        start = { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false, downs: 0, lastY: e.clientY, lastT: performance.now(), vy: 0 };
+        if (start) stopHold(start);
+        const s = start = { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false, downs: 0, lastY: e.clientY, lastT: performance.now(), vy: 0, hold: null };
+        if (!this.playing()) return;
+        const piece = this.piece;
+        const fall = () => {
+          // Nur der Stein, auf dem der Finger lag; der nächste fällt wieder normal
+          if (start !== s || !this.playing() || this.piece !== piece) return;
+          s.moved = true;
+          this.act('down');
+          s.hold = setTimeout(fall, 35);
+        };
+        s.hold = setTimeout(fall, 280);
       });
       stage.addEventListener('pointermove', (e) => {
         if (!start || e.pointerId !== start.id || !this.playing()) return;
@@ -991,6 +1004,8 @@ SPG.render();
         if (now > start.lastT) start.vy = (e.clientY - start.lastY) / (now - start.lastT);
         start.lastY = e.clientY; start.lastT = now;
         const dx = e.clientX - start.x, dy = e.clientY - start.y;
+        // Ziehen statt Halten: das schnelle Fallen hört auf
+        if (start.hold && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) stopHold(start);
         if (Math.abs(dx) >= step) {
           this.act(dx > 0 ? 'right' : 'left');
           start.x += Math.sign(dx) * step;
@@ -1010,6 +1025,7 @@ SPG.render();
         if (!start || e.pointerId !== start.id) return;
         const s = start;
         start = null;
+        stopHold(s);
         if (e.type !== 'pointerup') return;
         if (!s.moved) {
           if (!this.wake() && performance.now() - s.t < 400) this.act('rotate');
