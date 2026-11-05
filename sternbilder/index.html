@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e0e7ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Sternbilder raten 🌌</title>
+  <style>
+/* SPG-DESIGN:BEGIN */
+/* Single-Page Games: gemeinsame Designsprache v1
+   Quelle: design/spg.css. Nicht in den Spielen von Hand ändern,
+   sondern hier ändern und `node tools/design.mjs --write` ausführen. */
+:root {
+  --font: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-2: rgba(255, 255, 255, 0.88);
+  --line: #e2e8f0;
+  --success: #22c55e;
+  --success-2: #34d399;
+  --danger: #ef4444;
+  --radius: 24px;
+  --radius-sm: 18px;
+  --tap: 56px;           /* Mindestgröße für Tasten (Kinderfinger) */
+  --big: 64px;           /* Höhe großer Knöpfe */
+  --gap: 12px;
+  --fs-title: clamp(1.25rem, 5vw, 1.8rem);
+  --fs-text: 1.05rem;
+}
+@media (max-width: 360px) { :root { --tap: 50px; --big: 58px; --gap: 8px; } }
+@media (min-width: 700px) and (min-height: 700px) { :root { --tap: 68px; --big: 72px; --gap: 16px; } }
+
+/* Kategorie-Farben: .u6 = bis 6 Jahre (warm), .ue6 = ab 6 / Erwachsene (kühl).
+   Auf <body> setzen; funktioniert auch auf einzelnen Karten. */
+:root, .u6 {
+  --primary: #f97316;
+  --primary-2: #f59e0b;
+  --primary-ink: #c2410c;
+  --primary-soft: #fff7ed;
+  --primary-line: #fed7aa;
+  --bg: linear-gradient(180deg, #fef3c7 0%, #ffedd5 45%, #ffe4e6 100%);
+  --shadow: 0 4px 14px rgba(194, 65, 12, 0.12);
+}
+.ue6 {
+  --primary: #6366f1;
+  --primary-2: #8b5cf6;
+  --primary-ink: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-line: #c7d2fe;
+  --bg: linear-gradient(180deg, #e0e7ff 0%, #ede9fe 50%, #fae8ff 100%);
+  --shadow: 0 4px 14px rgba(67, 56, 202, 0.14);
+}
+
+/* ---------- Grundlage ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-text);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button { font: inherit; color: inherit; touch-action: manipulation; }
+[hidden] { display: none !important; }
+
+/* Vollbild-Spielseite: kein Scrollen, Zoomen, Markieren oder Pull-to-Refresh */
+html:has(> body.game) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.game {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- Kopfleiste ---------- */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 8px 8px 0;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.topbar h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .actions { display: flex; gap: 8px; flex: none; }
+/* Spielknöpfe (Zurück, Flagge, Pause …) gehören nicht in die Kopfleiste, sondern in die Leiste unter dem Spielfeld */
+.gamebar { flex: none; display: flex; justify-content: center; gap: 12px; margin: 0 8px 8px; }
+.gamebar .icon-btn { width: var(--big); height: var(--big); font-size: calc(var(--big) * 0.46); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+@media (min-width: 700px) and (min-height: 700px) { .topbar { margin: 12px 12px 0; padding: 8px 8px 8px 20px; } }
+/* Schmales Handy (hoch): die Knöpfe bekommen oben eine eigene Reihe, darunter steht der Spielstand (h1)
+   in voller Breite. So verschwinden Punkte, Leben usw. nie hinter den Knöpfen. Quer und am Tablet: eine Reihe. */
+@media (max-width: 599px) {
+  .topbar { flex-wrap: wrap; justify-content: center; row-gap: 2px; padding: 6px; }
+  .topbar .actions { order: -1; width: 100%; justify-content: space-between; }
+  .topbar h1 { flex: 1 1 100%; padding: 0 8px 2px; text-align: center; justify-content: center; line-height: 1.35; }
+}
+
+/* ---------- Knöpfe ---------- */
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-line), 0 2px 4px rgba(0, 0, 0, 0.08);
+  font-size: calc(var(--tap) * 0.48);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.1s, background 0.2s;
+}
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn.active { background: #fde68a; box-shadow: inset 0 0 0 2px #f59e0b; }
+/* Ton aus (.mute-btn, gesteuert von spg.js): stumm = grau */
+.icon-btn.mute-btn[aria-pressed="true"] { background: #e2e8f0; box-shadow: inset 0 0 0 2px #cbd5e1; }
+
+.big-btn {
+  width: 100%;
+  min-height: var(--big);
+  padding: 0 18px;
+  border: none;
+  border-radius: 20px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.1s;
+}
+.big-btn:active { transform: scale(0.96); }
+.big-btn.success { background: linear-gradient(90deg, var(--success-2), var(--success)); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
+.big-btn.plain { background: #f1f5f9; color: var(--ink); box-shadow: none; }
+.big-btn.soft { background: var(--primary-soft); color: var(--primary-ink); box-shadow: inset 0 0 0 2px var(--primary-line); }
+
+.row { display: flex; gap: var(--gap); }
+.row > * { flex: 1; }
+.stack { display: grid; gap: var(--gap); }
+
+/* Auswahl-Kacheln (Anzahl, Schwierigkeit, Farbe ...) */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+.choice-btn {
+  min-height: 84px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.choice-btn.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+
+/* ---------- Karten, Texte ---------- */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted { color: var(--muted); }
+.section-label { text-align: left; font-weight: 700; color: var(--muted); margin: 20px 0 8px; font-size: 0.95rem; }
+
+/* ---------- Dialoge ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.overlay[hidden] { display: none; }
+/* Die Kopfleiste bleibt über Dialogen bedienbar (🏠 🔊 ⛶ auch im Startbildschirm) */
+body.game .topbar { position: relative; z-index: 2100; }
+/* --spg-top = Unterkante der Kopfleiste, setzt spg.js (ein- oder zweireihig) */
+body.game .overlay { padding-top: calc(var(--spg-top, calc(var(--tap) + 20px)) + 12px); }
+body.game .dialog { max-height: calc(100dvh - var(--spg-top, calc(var(--tap) + 20px)) - 28px); }
+.dialog {
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: spg-pop-in 0.25s ease-out;
+}
+.dialog h2 { margin: 0 0 6px; font-size: 1.6rem; }
+.dialog p { margin: 0 0 18px; color: var(--muted); font-weight: 500; }
+.big-emoji { font-size: 56px; line-height: 1.1; margin-bottom: 6px; }
+@keyframes spg-pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ---------- Hinweise, Konfetti ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 3000;
+  background: #1e293b;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 600;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+.toast[hidden] { display: none; }
+.confetti { position: fixed; inset: 0; z-index: 1500; pointer-events: none; }
+.confetti[hidden] { display: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* SPG-DESIGN:END */
+    :root { --night: #050816; --night-2: #0b1230; --star-glow: #fde68a; --line-col: #93c5fd; }
+    .topbar h1 { display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+    .topbar h1 .stat { display: inline-flex; align-items: center; gap: 4px; color: var(--primary-ink); }
+    #stage {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      padding: var(--gap) 8px 8px;
+    }
+    /* Himmel */
+    #sky-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: radial-gradient(ellipse at 50% 30%, var(--night-2) 0%, var(--night) 70%);
+      box-shadow: var(--shadow), inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+    }
+    #sky { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    /* Hilfe: Linien verbinden, rechts oben im Himmel */
+    #btn-lines {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 0 0 2px rgba(147, 197, 253, 0.45);
+      color: #e0e7ff;
+      -webkit-backdrop-filter: blur(4px);
+      backdrop-filter: blur(4px);
+    }
+    #btn-lines svg { width: 62%; height: 62%; }
+    #btn-lines.active { background: rgba(147, 197, 253, 0.3); box-shadow: inset 0 0 0 2px var(--line-col), 0 0 18px rgba(147, 197, 253, 0.5); }
+    #sky-name {
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      z-index: 2;
+      max-width: calc(100% - 24px);
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.7);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.15rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+      animation: spg-pop-in 0.25s ease-out;
+    }
+    /* Antworten */
+    #answers { flex: none; display: flex; flex-direction: column; gap: 10px; }
+    #question { margin: 0; text-align: center; font-weight: 700; color: var(--primary-ink); font-size: 1.1rem; }
+    .answer {
+      min-height: var(--big);
+      padding: 0 18px;
+      border: none;
+      border-radius: 20px;
+      background: var(--surface);
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 1.2rem;
+      box-shadow: inset 0 0 0 2px var(--primary-line), var(--shadow);
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s, box-shadow 0.2s, opacity 0.2s;
+    }
+    .answer:not(:disabled):active { transform: scale(0.97); }
+    .answer:disabled { cursor: default; }
+    .answer.right { background: #dcfce7; color: #166534; box-shadow: inset 0 0 0 3px var(--success), var(--shadow); }
+    .answer.wrong { background: #fee2e2; color: #991b1b; box-shadow: inset 0 0 0 3px var(--danger), var(--shadow); animation: shake 0.35s; }
+    .answer.dim { opacity: 0.45; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+    /* Quer: Himmel links, Antworten rechts */
+    @media (orientation: landscape) and (min-width: 600px) {
+      #stage { flex-direction: row; }
+      #answers { width: min(36%, 380px); justify-content: center; }
+    }
+    .choice-btn small { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+    .choice-btn .big { font-size: 2rem; line-height: 1; }
+    .step-nav { display: flex; gap: var(--gap); margin-top: 18px; }
+    .step-nav > * { flex: 1; }
+    .dialog .end-score { font-size: 1.4rem; font-weight: 800; color: var(--ink); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="game ue6">
+  <header class="topbar">
+    <h1 aria-label="Spielstand">
+      <span class="stat" aria-label="Runde">🔭 <span id="round">0/10</span></span>
+      <span class="stat" aria-label="Sterne">⭐ <span id="score">0</span></span>
+    </h1>
+    <div class="actions">
+      <a class="icon-btn home-btn" href="../" aria-label="Alle Spiele">🏠</a>
+      <button class="icon-btn mute-btn" id="btn-mute" aria-label="Ton aus" aria-pressed="true">🔇</button>
+      <button class="icon-btn" id="btn-new" aria-label="Neues Spiel">🔄</button>
+      <button class="icon-btn fs-btn" aria-label="Vollbild" aria-pressed="false">⛶</button>
+    </div>
+  </header>
+  <main id="stage">
+    <div id="sky-wrap">
+      <canvas id="sky" aria-label="Sternenhimmel"></canvas>
+      <button class="icon-btn" id="btn-lines" aria-label="Linien verbinden" aria-pressed="false">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M7 30 L16 12 L27 20 L34 7" fill="none" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><g fill="#fef9c3"><circle cx="7" cy="30" r="4"/><circle cx="16" cy="12" r="4"/><circle cx="27" cy="20" r="4"/><circle cx="34" cy="7" r="4"/></g></svg>
+      </button>
+      <div id="sky-name" hidden></div>
+    </div>
+    <div id="answers">
+      <p id="question">Welches Sternbild?</p>
+      <button class="answer" data-i="0"></button>
+      <button class="answer" data-i="1"></button>
+      <button class="answer" data-i="2"></button>
+    </div>
+  </main>
+
+  <!-- Startbildschirm -->
+  <div class="overlay" id="start" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="start-title">
+      <div class="big-emoji">🌌</div>
+      <h2 id="start-title">Sternbilder raten</h2>
+      <div class="section-label">Welche Sternbilder?</div>
+      <div class="choice-grid">
+        <button class="choice-btn" data-level="easy"><span class="big">🌟</span><span>Leicht</span><small id="count-easy">bekannte</small></button>
+        <button class="choice-btn" data-level="all"><span class="big">🌌</span><span>Alle</span><small id="count-all"></small></button>
+      </div>
+      <div class="step-nav">
+        <button class="big-btn plain" id="btn-close-start" aria-label="Schließen">✖️</button>
+      </div>
+    </div>
+  </div>
+  <!-- Rückfrage bei Neustart -->
+  <div class="overlay" id="confirm" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="big-emoji">🔄</div>
+      <h2 id="confirm-title">Neues Spiel?</h2>
+      <p>Sterne gehen verloren.</p>
+      <div class="row">
+        <button class="big-btn plain" id="confirm-no" aria-label="Nein">✖️</button>
+        <button class="big-btn success" id="confirm-yes" aria-label="Ja">✔️</button>
+      </div>
+    </div>
+  </div>
+  <!-- Ende -->
+  <div class="overlay" id="end" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="end-title">
+      <div class="big-emoji" id="end-emoji">🏆</div>
+      <h2 id="end-title">Geschafft!</h2>
+      <p class="end-score" id="end-score"></p>
+      <p id="end-best"></p>
+      <div class="stack">
+        <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+      </div>
+    </div>
+  </div>
+  <canvas id="confetti" class="confetti" hidden></canvas>
+
+  <script>
+  'use strict';
+/* SPG-JS:BEGIN */
+// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
+// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+const SPG = {
+  muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.render();
+  },
+  isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  toggleFullscreen() {
+    const root = document.documentElement;
+    try {
+      if (this.isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else Promise.resolve((root.requestFullscreen || root.webkitRequestFullscreen).call(root)).catch(() => {});
+    } catch (e) {}
+  },
+  render() {
+    for (const b of document.querySelectorAll('.mute-btn')) {
+      b.textContent = this.muted ? '🔇' : '🔊';
+      b.setAttribute('aria-pressed', String(this.muted));
+    }
+    for (const b of document.querySelectorAll('.fs-btn')) {
+      b.classList.toggle('active', this.isFullscreen());
+      b.setAttribute('aria-pressed', String(this.isFullscreen()));
+    }
+  }
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest('.mute-btn')) SPG.setMuted(!SPG.muted);
+  if (e.target.closest('.fs-btn')) SPG.toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', () => SPG.render());
+document.addEventListener('webkitfullscreenchange', () => SPG.render());
+window.addEventListener('storage', (e) => {
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+});
+// Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
+// Vollbild gibt es nicht überall (z. B. iPhone).
+if (location.protocol === 'file:') for (const a of document.querySelectorAll('.home-btn')) a.hidden = true;
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  for (const b of document.querySelectorAll('.fs-btn')) b.hidden = true;
+}
+// Dialoge beginnen unter der Kopfleiste, die am schmalen Handy zweireihig ist.
+const spgTop = document.querySelector('.topbar');
+if (spgTop) {
+  const setTop = () => document.documentElement.style.setProperty('--spg-top', Math.ceil(spgTop.getBoundingClientRect().bottom) + 'px');
+  setTop();
+  if (window.ResizeObserver) new ResizeObserver(setTop).observe(spgTop);
+  window.addEventListener('resize', setTop);
+}
+SPG.render();
+/* SPG-JS:END */
+
+  /* ===================================================================
+     Töne (Web Audio, keine Dateien nötig)
+     =================================================================== */
+  const Sound = {
+    ctx: null,
+    init() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (SPG.muted) return;
+      const t = this.ctx.currentTime + start;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+    click() { this.init(); if (this.ctx) this.tone(660, 0, 0.06, 'square', 0.05, 880); },
+    sparkle() {
+      this.init();
+      if (!this.ctx) return;
+      [1318.5, 1568, 2093, 2637].forEach((f, i) => this.tone(f, i * 0.06, 0.25, 'sine', 0.08));
+    },
+    right() {
+      this.init();
+      if (!this.ctx) return;
+      this.tone(659.25, 0, 0.16, 'triangle', 0.25);
+      this.tone(987.77, 0.12, 0.3, 'triangle', 0.25);
+    },
+    wrong() {
+      this.init();
+      if (!this.ctx) return;
+      this.tone(330, 0, 0.18, 'triangle', 0.22, 262);
+      this.tone(247, 0.16, 0.3, 'triangle', 0.2, 196);
+    },
+    win() {
+      this.init();
+      if (!this.ctx) return;
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
+    }
+  };
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  /* ===================================================================
+     Konfetti
+     =================================================================== */
+  const Confetti = {
+    canvas: document.getElementById('confetti'),
+    raf: null,
+    parts: [],
+    start() {
+      const c = this.canvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      c.style.width = innerWidth + 'px';
+      c.style.height = innerHeight + 'px';
+      c.hidden = false;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const n = Math.round(Math.min(160, innerWidth / 5));
+      this.parts = Array.from({ length: n }, () => ({
+        x: Math.random() * innerWidth,
+        y: -Math.random() * innerHeight,
+        s: Math.random() * 10 + 6,
+        c: colors[(Math.random() * colors.length) | 0],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2.5,
+        r: Math.random() * 360,
+        vr: (Math.random() - 0.5) * 10
+      }));
+      const end = performance.now() + 5000;
+      const loop = (now) => {
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of this.parts) {
+          p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.y > innerHeight + 20 && now < end) p.y = -20;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.r * Math.PI / 180);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+          ctx.restore();
+        }
+        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
+        else this.stop();
+      };
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      cancelAnimationFrame(this.raf);
+      this.canvas.hidden = true;
+    }
+  };
+
+  /* ===================================================================
+     Sternbilder: Sterne als [Rektaszension in Stunden, Deklination in Grad, Helligkeit (mag)],
+     Linien als Ketten von Stern-Nummern. Werte gerundet, reicht für die Form.
+     =================================================================== */
+  const CONSTELLATIONS = [
+    { name: 'Großer Wagen', easy: true,
+      stars: [[11.06, 61.75, 1.8], [11.03, 56.38, 2.4], [11.90, 53.69, 2.4], [12.26, 57.03, 3.3], [12.90, 55.96, 1.8], [13.40, 54.93, 2.2], [13.79, 49.31, 1.9]],
+      lines: [[0, 1, 2, 3, 0], [3, 4, 5, 6]] },
+    { name: 'Kleiner Wagen', easy: true,
+      stars: [[2.53, 89.26, 2.0], [17.54, 86.59, 4.4], [16.77, 82.04, 4.2], [15.73, 77.79, 4.3], [14.85, 74.16, 2.1], [15.35, 71.83, 3.0], [16.29, 75.76, 5.0]],
+      lines: [[0, 1, 2, 3, 4, 5, 6, 3]] },
+    { name: 'Kassiopeia', easy: true,
+      stars: [[0.15, 59.15, 2.3], [0.68, 56.54, 2.2], [0.95, 60.72, 2.5], [1.43, 60.24, 2.7], [1.91, 63.67, 3.4]],
+      lines: [[0, 1, 2, 3, 4]] },
+    { name: 'Orion', easy: true,
+      stars: [[5.92, 7.41, 0.5], [5.42, 6.35, 1.6], [5.53, -0.30, 2.2], [5.60, -1.20, 1.7], [5.68, -1.94, 1.8], [5.80, -9.67, 2.1], [5.24, -8.20, 0.1], [5.59, 9.93, 3.4]],
+      lines: [[7, 0, 4, 3, 2, 1, 7], [4, 5], [2, 6]] },
+    { name: 'Kreuz des Südens', easy: true,
+      stars: [[12.44, -63.10, 0.8], [12.80, -59.69, 1.3], [12.52, -57.11, 1.6], [12.25, -58.75, 2.8], [12.36, -60.40, 3.6]],
+      lines: [[2, 0], [1, 3]] },
+    { name: 'Schwan', easy: true,
+      stars: [[20.69, 45.28, 1.3], [20.37, 40.26, 2.2], [19.94, 35.08, 3.9], [19.51, 27.96, 3.1], [19.75, 45.13, 2.9], [20.77, 33.97, 2.5], [21.22, 30.23, 3.2]],
+      lines: [[0, 1, 2, 3], [4, 1, 5, 6]] },
+    { name: 'Skorpion', easy: true,
+      stars: [[16.49, -26.43, 1.0], [16.35, -25.59, 2.9], [16.01, -22.62, 2.3], [16.09, -19.81, 2.6], [15.98, -26.11, 2.9], [16.60, -28.22, 2.8], [16.84, -34.29, 2.3], [16.86, -38.05, 3.0], [16.91, -42.36, 3.6], [17.20, -43.24, 3.3], [17.62, -43.00, 1.9], [17.79, -40.13, 3.0], [17.71, -39.03, 2.4], [17.56, -37.10, 1.6]],
+      lines: [[3, 2, 4], [2, 1, 0, 5, 6, 7, 8, 9, 10, 11, 12, 13]] },
+    { name: 'Löwe', easy: true,
+      stars: [[10.14, 11.97, 1.4], [10.12, 16.76, 3.5], [10.33, 19.84, 2.0], [10.28, 23.42, 3.4], [9.88, 26.01, 3.9], [9.76, 23.77, 3.0], [11.24, 20.52, 2.6], [11.24, 15.43, 3.3], [11.82, 14.57, 2.1]],
+      lines: [[0, 1, 2, 3, 4, 5], [2, 6, 8, 7, 0], [6, 7]] },
+    { name: 'Leier', easy: false,
+      stars: [[18.62, 38.78, 0.0], [18.74, 39.67, 4.7], [18.75, 37.61, 4.4], [18.83, 33.36, 3.5], [18.98, 32.69, 3.3], [18.91, 36.90, 4.3]],
+      lines: [[1, 0, 2, 1], [2, 3, 4, 5, 2]] },
+    { name: 'Krebs', easy: false,
+      stars: [[8.28, 9.19, 3.5], [8.74, 18.15, 3.9], [8.72, 21.47, 4.7], [8.78, 28.76, 4.0], [8.97, 11.86, 4.3]],
+      lines: [[0, 1, 2, 3], [1, 4]] },
+    { name: 'Jungfrau', easy: false,
+      stars: [[13.42, -11.16, 1.0], [12.69, -1.45, 2.7], [12.93, 3.40, 3.4], [13.04, 10.96, 2.8], [12.33, -0.67, 3.9], [11.84, 1.76, 3.6], [13.58, -0.60, 3.4], [13.16, -5.54, 4.4], [14.03, 1.54, 4.3], [14.27, -6.00, 4.1]],
+      lines: [[5, 4, 1, 2, 3], [1, 7, 0], [2, 6, 8], [6, 9]] },
+    { name: 'Zwillinge', easy: false,
+      stars: [[7.58, 31.89, 1.6], [7.76, 28.03, 1.1], [6.63, 16.40, 1.9], [6.38, 22.51, 2.9], [6.25, 22.51, 3.3], [6.73, 25.13, 3.0], [7.34, 21.98, 3.5], [7.07, 20.57, 3.8], [7.30, 16.54, 3.6], [6.75, 12.90, 3.4], [7.19, 30.25, 4.4], [6.88, 33.96, 3.6]],
+      lines: [[0, 1], [0, 10, 5, 3, 4], [10, 11], [1, 6, 7, 2], [6, 8, 9]] },
+    { name: 'Stier', easy: false,
+      stars: [[4.60, 16.51, 0.9], [5.44, 28.61, 1.7], [5.63, 21.14, 3.0], [4.33, 15.63, 3.7], [4.38, 17.54, 3.8], [4.48, 19.18, 3.5], [4.48, 15.87, 3.4], [4.01, 12.49, 3.5], [3.79, 24.11, 2.9]],
+      lines: [[2, 0, 6, 3, 7], [1, 5, 4, 3]] },
+    { name: 'Großer Hund', easy: false,
+      stars: [[6.75, -16.72, -1.5], [6.38, -17.96, 2.0], [7.14, -26.39, 1.8], [6.98, -28.97, 1.5], [7.40, -29.30, 2.4], [6.34, -30.06, 3.0], [7.06, -15.63, 4.1], [6.94, -17.05, 4.4], [7.05, -23.83, 3.0]],
+      lines: [[1, 0, 7, 6], [0, 8, 2, 4], [2, 3, 5]] },
+    { name: 'Adler', easy: false,
+      stars: [[19.85, 8.87, 0.8], [19.77, 10.61, 2.7], [19.92, 6.41, 3.7], [19.42, 3.11, 3.4], [19.09, 13.86, 3.0], [20.19, -0.82, 3.2], [19.10, -4.88, 3.4], [19.87, 1.01, 3.9]],
+      lines: [[4, 1, 0, 2, 7, 5], [0, 3, 6]] },
+    { name: 'Pegasus', easy: false,
+      stars: [[23.08, 15.21, 2.5], [23.06, 28.08, 2.4], [0.22, 15.18, 2.8], [0.14, 29.09, 2.1], [21.74, 9.88, 2.4], [22.69, 10.83, 3.4], [22.17, 6.20, 3.5], [22.72, 30.22, 2.9]],
+      lines: [[0, 1, 3, 2, 0], [0, 5, 6, 4], [1, 7]] },
+    { name: 'Bärenhüter', easy: false,
+      stars: [[14.26, 19.18, -0.1], [14.75, 27.07, 2.4], [15.26, 33.31, 3.5], [15.03, 40.39, 3.5], [14.53, 38.31, 3.0], [14.53, 30.37, 3.6], [13.91, 18.40, 2.7], [14.69, 13.73, 3.8]],
+      lines: [[0, 1, 2, 3, 4, 5, 0], [6, 0, 7]] },
+    { name: 'Nördliche Krone', easy: false,
+      stars: [[15.55, 31.36, 4.1], [15.46, 29.11, 3.7], [15.58, 26.71, 2.2], [15.71, 26.30, 3.8], [15.83, 26.07, 4.6], [15.96, 26.88, 4.1], [16.02, 29.85, 4.9]],
+      lines: [[0, 1, 2, 3, 4, 5, 6]] },
+    { name: 'Widder', easy: false,
+      stars: [[2.12, 23.46, 2.0], [1.91, 20.81, 2.6], [1.89, 19.29, 3.9], [2.83, 27.26, 3.6]],
+      lines: [[3, 0, 1, 2]] },
+    { name: 'Schütze', easy: false,
+      stars: [[18.40, -34.38, 1.8], [18.35, -29.83, 2.7], [18.47, -25.42, 2.8], [18.76, -26.99, 3.2], [18.92, -26.30, 2.0], [19.12, -27.67, 3.3], [19.04, -29.88, 2.6], [18.10, -30.42, 3.0], [18.29, -36.76, 3.1]],
+      lines: [[7, 1, 2, 3, 1], [7, 0, 1], [0, 6, 3, 4, 5, 6], [0, 8]] },
+    { name: 'Herkules', easy: false,
+      stars: [[17.25, 36.81, 3.2], [16.71, 38.92, 3.5], [16.69, 31.60, 2.8], [17.00, 30.93, 3.9], [16.50, 21.49, 2.8], [17.25, 24.84, 3.1], [16.33, 46.31, 3.9]],
+      lines: [[0, 1, 2, 3, 0], [2, 4], [3, 5], [1, 6]] },
+    { name: 'Waage', easy: false,
+      stars: [[14.85, -16.04, 2.8], [15.28, -9.38, 2.6], [15.59, -14.79, 3.9], [15.07, -25.28, 3.3], [15.62, -28.14, 3.6]],
+      lines: [[0, 1, 2, 0], [0, 3], [2, 4]] },
+    { name: 'Andromeda', easy: false,
+      stars: [[0.14, 29.09, 2.1], [0.66, 30.86, 3.3], [1.16, 35.62, 2.1], [2.07, 42.33, 2.1], [0.95, 38.50, 3.9], [0.83, 41.08, 4.5]],
+      lines: [[0, 1, 2, 3], [2, 4, 5]] }
+  ];
+
+  // Himmelskoordinaten -> flache Form (Projektion um die Mitte des Sternbilds, Norden oben, Osten links)
+  function project(c) {
+    const vec = ([ra, dec]) => {
+      const a = ra * Math.PI / 12, d = dec * Math.PI / 180;
+      return [Math.cos(d) * Math.cos(a), Math.cos(d) * Math.sin(a), Math.sin(d)];
+    };
+    const vs = c.stars.map(vec);
+    let m = [0, 0, 0];
+    for (const v of vs) m = [m[0] + v[0], m[1] + v[1], m[2] + v[2]];
+    const len = Math.hypot(...m);
+    const C = m.map((x) => x / len);
+    let E = [-C[1], C[0], 0];
+    const el = Math.hypot(...E) || 1;
+    E = E.map((x) => x / el);
+    const N = [C[1] * E[2] - C[2] * E[1], C[2] * E[0] - C[0] * E[2], C[0] * E[1] - C[1] * E[0]];
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const pts = vs.map((v) => { const k = dot(v, C); return [-dot(v, E) / k, -dot(v, N) / k]; });
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const w = Math.max(...xs) - minX, h = Math.max(...ys) - minY;
+    const s = Math.max(w, h) || 1;
+    // normiert: größte Seite = 1, Form bleibt erhalten
+    return { pts: pts.map(([x, y]) => [(x - minX) / s, (y - minY) / s]), w: w / s, h: h / s };
+  }
+  for (const c of CONSTELLATIONS) c.shape = project(c);
+
+  /* ===================================================================
+     Himmel zeichnen
+     =================================================================== */
+  const $ = (id) => document.getElementById(id);
+  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const Sky = {
+    canvas: $('sky'),
+    ctx: null,
+    w: 0, h: 0, dpr: 1,
+    bg: [],              // Hintergrundsterne, normiert 0..1
+    current: null,       // Sternbild
+    offset: [0.5, 0.5],  // freier Platz, Anteil 0..1
+    linesOn: false,
+    lineStart: 0,
+    raf: 0,
+    init() {
+      this.ctx = this.canvas.getContext('2d');
+      this.resize();
+      const loop = (now) => { this.draw(now); this.raf = requestAnimationFrame(loop); };
+      this.raf = requestAnimationFrame(loop);
+      document.addEventListener('visibilitychange', () => {
+        cancelAnimationFrame(this.raf);
+        if (!document.hidden) this.raf = requestAnimationFrame(loop);
+      });
+    },
+    resize() {
+      const r = this.canvas.getBoundingClientRect();
+      this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+      this.w = Math.max(1, r.width);
+      this.h = Math.max(1, r.height);
+      this.canvas.width = Math.round(this.w * this.dpr);
+      this.canvas.height = Math.round(this.h * this.dpr);
+      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    },
+    newSky(c) {
+      this.current = c;
+      this.offset = [Math.random(), Math.random()];
+      this.linesOn = false;
+      const n = 260;
+      this.bg = Array.from({ length: n }, () => ({
+        x: Math.random(), y: Math.random(),
+        r: Math.random() < 0.9 ? 0.4 + Math.random() * 0.6 : 1 + Math.random() * 0.5,
+        a: 0.25 + Math.random() * 0.5,
+        tw: Math.random() * Math.PI * 2,
+        sp: 0.6 + Math.random() * 1.8
+      }));
+    },
+    showLines(on) {
+      if (on && !this.linesOn) this.lineStart = performance.now();
+      this.linesOn = on;
+    },
+    // Lage der Sternbild-Sterne in Pixeln
+    points() {
+      const c = this.current;
+      if (!c) return [];
+      const pad = Math.max(30, Math.min(this.w, this.h) * 0.12);
+      const top = 64;   // Platz für den Linien-Knopf
+      const availW = this.w - pad * 2, availH = this.h - pad - Math.max(pad, top);
+      const s = Math.min(availW / c.shape.w, availH / c.shape.h, Math.min(this.w, this.h) * 0.95);
+      const fw = c.shape.w * s, fh = c.shape.h * s;
+      const ox = pad + (availW - fw) * this.offset[0];
+      const oy = Math.max(pad, top) + (availH - fh) * this.offset[1];
+      return c.shape.pts.map(([x, y]) => [ox + x * s, oy + y * s]);
+    },
+    draw(now) {
+      const ctx = this.ctx, w = this.w, h = this.h;
+      ctx.clearRect(0, 0, w, h);
+      const t = now / 1000;
+      for (const s of this.bg) {
+        const a = reduceMotion ? s.a : s.a * (0.65 + 0.35 * Math.sin(t * s.sp + s.tw));
+        ctx.fillStyle = `rgba(226, 232, 255, ${a})`;
+        ctx.beginPath();
+        ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const c = this.current;
+      if (!c) return;
+      const pts = this.points();
+      const unit = Math.max(2.6, Math.min(w, h) / 120);
+      // Linien
+      if (this.linesOn) {
+        const p = reduceMotion ? 1 : Math.min(1, (now - this.lineStart) / 900);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(147, 197, 253, 0.85)';
+        ctx.lineWidth = Math.max(2, unit * 0.7);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = 'rgba(147, 197, 253, 0.8)';
+        ctx.shadowBlur = 8;
+        for (const chain of c.lines) {
+          const segs = chain.length - 1;
+          const upto = p * segs;
+          ctx.beginPath();
+          ctx.moveTo(...pts[chain[0]]);
+          for (let i = 0; i < segs; i++) {
+            if (i >= upto) break;
+            const a = pts[chain[i]], b = pts[chain[i + 1]];
+            const f = Math.min(1, upto - i);
+            ctx.lineTo(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f);
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // Leuchtende Sterne
+      c.stars.forEach((st, i) => {
+        const [x, y] = pts[i];
+        const r = unit * Math.max(0.75, Math.min(1.6, 1 + (2.5 - st[2]) * 0.18));
+        const pulse = reduceMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 2 + i);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 4.5);
+        g.addColorStop(0, `rgba(254, 243, 199, ${0.75 * pulse})`);
+        g.addColorStop(0.3, `rgba(253, 230, 138, ${0.3 * pulse})`);
+        g.addColorStop(1, 'rgba(253, 230, 138, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fffbeb';
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  };
+
+  /* ===================================================================
+     Spiel
+     =================================================================== */
+  const ROUNDS = 10;
+  const store = {
+    get(key, fallback) { try { const v = localStorage.getItem('sternbilder.' + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+    set(key, value) { try { localStorage.setItem('sternbilder.' + key, JSON.stringify(value)); } catch (e) {} }
+  };
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  const Game = {
+    level: store.get('level', 'easy'),
+    queue: [],
+    round: 0,
+    score: 0,
+    usedHelp: false,
+    state: 'idle',          // idle | ask | answered | over
+    options: [],
+    nextTimer: null,
+    buttons: [...document.querySelectorAll('.answer')],
+    pool() { return CONSTELLATIONS.filter((c) => this.level === 'all' || c.easy); },
+    init() {
+      if (this.level !== 'all') this.level = 'easy';
+      $('count-easy').textContent = CONSTELLATIONS.filter((c) => c.easy).length + ' bekannte';
+      $('count-all').textContent = CONSTELLATIONS.length + ' Stück';
+      Sky.init();
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      for (const b of this.buttons) b.addEventListener('click', () => this.answer(+b.dataset.i));
+      $('btn-lines').addEventListener('click', () => this.toggleLines());
+      $('sky-wrap').addEventListener('click', (e) => { if (e.target.id === 'sky' && this.state === 'answered') this.next(); });
+      $('btn-new').addEventListener('click', () => this.askNew());
+      $('btn-close-start').addEventListener('click', () => this.closeStart());
+      $('start').addEventListener('click', (e) => { if (e.target.id === 'start') this.closeStart(); });
+      for (const b of document.querySelectorAll('[data-level]')) {
+        b.addEventListener('click', () => { Sound.click(); this.start(b.dataset.level); });
+      }
+      $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+      $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.openStart(); });
+      $('btn-again').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); this.start(this.level); });
+      document.addEventListener('keydown', (e) => {
+        const free = $('start').hidden && $('confirm').hidden && $('end').hidden;
+        if (free && e.key >= '1' && e.key <= '3') this.answer(+e.key - 1);
+        else if (free && (e.key === 'l' || e.key === 'L' || e.key === 'h' || e.key === 'H')) this.toggleLines();
+        else if (free && (e.key === 'Enter' || e.key === ' ') && this.state === 'answered') { e.preventDefault(); this.next(); }
+        else if (e.key === 'n' || e.key === 'N') this.askNew();
+        else if (e.key === 'Escape') { this.closeStart(); $('confirm').hidden = true; }
+      });
+      // Drehen / Größe ändern: Himmel neu vermessen, Runde bleibt
+      const ro = () => Sky.resize();
+      if (window.ResizeObserver) new ResizeObserver(ro).observe($('sky-wrap'));
+      window.addEventListener('resize', ro);
+      // Vorschau-Himmel hinter dem Startbildschirm
+      Sky.newSky(CONSTELLATIONS[0]);
+      this.render();
+      this.openStart();
+    },
+    start(level) {
+      this.level = level;
+      store.set('level', level);
+      const pool = shuffle(this.pool().slice());
+      // 10 Runden; bei weniger Sternbildern als Runden wiederholt sich die Liste gemischt
+      this.queue = [];
+      while (this.queue.length < ROUNDS) this.queue.push(...shuffle(pool.slice()));
+      this.queue.length = ROUNDS;
+      this.round = 0;
+      this.score = 0;
+      $('start').hidden = true;
+      $('end').hidden = true;
+      Confetti.stop();
+      this.ask();
+    },
+    ask() {
+      clearTimeout(this.nextTimer);
+      const c = this.queue[this.round];
+      const others = shuffle(this.pool().filter((o) => o !== c)).slice(0, 2);
+      this.options = shuffle([c, ...others]);
+      this.usedHelp = false;
+      this.state = 'ask';
+      Sky.newSky(c);
+      $('sky-name').hidden = true;
+      this.buttons.forEach((b, i) => {
+        b.textContent = this.options[i].name;
+        b.className = 'answer';
+        b.disabled = false;
+      });
+      this.render();
+    },
+    toggleLines() {
+      if (this.state === 'idle' || this.state === 'over') return;
+      if (this.state === 'answered') return;
+      const on = !Sky.linesOn;
+      if (on) { this.usedHelp = true; Sound.sparkle(); } else Sound.click();
+      Sky.showLines(on);
+      this.render();
+    },
+    answer(i) {
+      if (this.state !== 'ask' || !this.options[i]) return;
+      const c = this.queue[this.round];
+      const ok = this.options[i] === c;
+      this.state = 'answered';
+      this.buttons.forEach((b, k) => {
+        b.disabled = true;
+        if (this.options[k] === c) b.classList.add('right');
+        else if (k === i) b.classList.add('wrong');
+        else b.classList.add('dim');
+      });
+      if (ok) {
+        // ohne Hilfe 2 Sterne, mit Linien 1 Stern
+        this.score += this.usedHelp ? 1 : 2;
+        Sound.right();
+        buzz(30);
+      } else {
+        Sound.wrong();
+        buzz([60, 40, 60]);
+      }
+      // Auflösung: Linien und Name im Himmel
+      Sky.showLines(true);
+      $('sky-name').textContent = (ok ? '✔️ ' : '') + c.name;
+      $('sky-name').hidden = false;
+      this.render();
+      this.nextTimer = setTimeout(() => this.next(), ok ? 1800 : 2800);
+    },
+    next() {
+      if (this.state !== 'answered') return;
+      clearTimeout(this.nextTimer);
+      this.round++;
+      if (this.round >= ROUNDS) this.finish();
+      else this.ask();
+    },
+    finish() {
+      this.state = 'over';
+      this.render();
+      const max = ROUNDS * 2;
+      const key = 'best-' + this.level;
+      const best = store.get(key, 0);
+      const record = this.score > best;
+      if (record) store.set(key, this.score);
+      const ratio = this.score / max;
+      $('end-emoji').textContent = ratio >= 0.8 ? '🏆🌟' : ratio >= 0.5 ? '🌟' : '🔭';
+      $('end-title').textContent = ratio >= 0.8 ? 'Super!' : ratio >= 0.5 ? 'Gut gemacht!' : 'Weiter üben!';
+      $('end-score').textContent = `⭐ ${this.score} / ${max}`;
+      $('end-best').textContent = record ? '🎉 Neuer Rekord!' : `Rekord: ⭐ ${best}`;
+      if (ratio >= 0.5) { Sound.win(); buzz([60, 60, 120]); Confetti.start(); }
+      else Sound.wrong();
+      $('end').hidden = false;
+    },
+    render() {
+      const shown = Math.min(this.round + (this.state === 'idle' ? 0 : 1), ROUNDS);
+      $('round').textContent = `${shown}/${ROUNDS}`;
+      $('score').textContent = this.score;
+      const btn = $('btn-lines');
+      btn.classList.toggle('active', Sky.linesOn);
+      btn.setAttribute('aria-pressed', String(Sky.linesOn));
+      btn.disabled = this.state !== 'ask';
+      $('answers').style.visibility = this.state === 'idle' ? 'hidden' : '';
+    },
+    /* ---------- Dialoge ---------- */
+    askNew() {
+      if (this.state === 'ask' || this.state === 'answered') $('confirm').hidden = false;
+      else this.openStart();
+    },
+    openStart() {
+      for (const b of document.querySelectorAll('[data-level]')) b.classList.toggle('selected', b.dataset.level === this.level);
+      $('start').hidden = false;
+    },
+    closeStart() {
+      $('start').hidden = true;
+      // Noch kein Spiel? Dann mit der letzten Auswahl starten.
+      if (this.state === 'idle') this.start(this.level);
+    }
+  };
+  Game.init();
+  </script>
+</body>
+</html>
