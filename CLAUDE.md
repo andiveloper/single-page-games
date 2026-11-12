@@ -13,13 +13,15 @@ Hier stehen nur die Regeln, die nie verletzt werden dürfen.
 - **Phone first.** Pixel 8a (412 × 915) im Hochformat, dann Tablet hoch und quer. Große Tasten, kein Überlauf.
 - **Gemeinsames Design** kommt aus `design/spg.css` und `design/spg.js` und wird mit `node tools/design.mjs --write`
   in jede Datei eingesetzt. Design nur dort ändern, nie in den Blöcken einer einzelnen Spieldatei.
+  `spg.js` liefert auch Ton (`SPG.sound`), Vibration, Konfetti, Speichern und `$`: nutzen, nicht kopieren.
 
 ## Kopfleiste: in jedem Spiel gleich
 
 Genau diese vier Knöpfe, in dieser Reihenfolge (Markup in `DESIGN.md`):
 🏠 Startseite · 🔊 Ton · 🔄 Neues Spiel · ⛶ Vollbild
 
-- **Ton ist standardmäßig aus** und gilt für alle Spiele gemeinsam. Jede Tonquelle beginnt mit `if (SPG.muted) return;`.
+- **Ton ist standardmäßig aus** und gilt für alle Spiele gemeinsam. `SPG.sound` hält sich von selbst daran,
+  jede eigene Tonquelle (Klangkette, Sprachausgabe) beginnt mit `if (SPG.muted) return;`.
 - **Kein ⚙️.** Einstellungen (Schwierigkeit, Tempo, Größe …) stehen im Startbildschirm, der beim Öffnen und nach 🔄 erscheint.
 - 🔄 mitten im Spiel fragt nach. Spielknöpfe gehören in die `.gamebar` unter dem Spielfeld, nicht in die Kopfleiste.
 
@@ -27,7 +29,7 @@ Genau diese vier Knöpfe, in dieser Reihenfolge (Markup in `DESIGN.md`):
 
 1. Ordner anlegen, Pflicht-Kopf aus `DESIGN.md` übernehmen, `node tools/design.mjs --write`.
 2. Auf der Startseite `index.html` eine Karte in der richtigen Sektion (U6 / Ü6) mit ▶️ Spielen und ⬇️ Herunterladen ergänzen.
-3. `node tools/design.mjs` muss grün sein (läuft auch in CI). Am Pixel-8a-Format und am Tablet anschauen.
+3. `node tools/design.mjs` und `node tools/smoke.mjs` müssen grün sein (laufen auch in CI). Am Pixel-8a-Format und am Tablet anschauen.
 
 ## Arbeitsweise
 

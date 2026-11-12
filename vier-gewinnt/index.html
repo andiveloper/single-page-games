@@ -420,7 +420,7 @@ body.game .dialog { max-height: calc(100dvh - var(--spg-top, calc(var(--tap) + 2
       <h2 id="end-title">Geschafft!</h2>
       <p id="end-text"></p>
       <div class="stack">
-        <button class="big-btn" id="btn-again">Nochmal 🚀</button>
+        <button class="big-btn" id="btn-again">🔄 Nochmal</button>
         <button class="big-btn soft" id="btn-look">👀 Feld ansehen</button>
       </div>
     </div>
@@ -431,14 +431,152 @@ body.game .dialog { max-height: calc(100dvh - var(--spg-top, calc(var(--tap) + 2
   <script>
   'use strict';
 /* SPG-JS:BEGIN */
-// Gemeinsame Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst).
-// Ton ist anfangs aus und gilt für alle Spiele (gleicher Speicher-Schlüssel). Sound.tone() fragt SPG.muted ab.
+// Gemeinsame Bausteine aller Spiele (DESIGN.md „Verhalten“), nicht in den Spielen kopieren:
+//  - Kopfleiste: 🏠 .home-btn, 🔊 .mute-btn, ⛶ .fs-btn (🔄 verdrahtet jedes Spiel selbst)
+//  - SPG.muted: Ton ist anfangs aus und gilt für alle Spiele; Änderungen melden sich als Event 'spg-mute' am document
+//  - SPG.sound.tone(…) / .noise(…) / .win(): Web Audio, schweigt von selbst bei Ton aus
+//  - SPG.buzz(ms), SPG.confetti.start(ms) / .stop(), SPG.store.get(key, fallback) / .set(key, value)
+//  - SPG.later(fn, ms) / SPG.clearLater(): verzögerte Spielschritte, die ein neues Spiel abbricht
+//  - $(id) = document.getElementById(id)
+const $ = (id) => document.getElementById(id);
 const SPG = {
   muted: (() => { try { return localStorage.getItem('spg-muted') !== '0'; } catch (e) { return true; } })(),
   setMuted(m) {
     this.muted = m;
-    try { localStorage.setItem('spg-muted', m ? '1' : '0'); } catch (e) {}
+    this.store.set('spg-muted', m ? 1 : 0);
     this.render();
+    document.dispatchEvent(new Event('spg-mute'));
+  },
+  // Speichern (Highscore, Einstellungen) als JSON; ohne localStorage (privat, voll) einfach nichts.
+  store: {
+    get(key, fallback) {
+      try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; }
+    }
+  },
+  // Verzögerte Schritte (Gewinn-Dialog, nächste Runde …). clearLater() bei neuem Spiel, damit nichts
+  // aus dem alten Spiel über dem neuen auftaucht.
+  timers: new Set(),
+  later(fn, ms) {
+    const id = setTimeout(() => { this.timers.delete(id); fn(); }, ms);
+    this.timers.add(id);
+    return id;
+  },
+  clearLater() {
+    for (const id of this.timers) clearTimeout(id);
+    this.timers.clear();
+  },
+  buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  },
+  // Töne ohne Dateien. ready() vor eigenen Klängen mit SPG.sound.ctx; tone/noise/win prüfen es selbst.
+  sound: {
+    ctx: null,
+    ready() {
+      if (SPG.muted) return false;
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        try { this.ctx = new AC(); } catch (e) { return false; }
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return true;
+    },
+    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
+      if (!this.ready()) return;
+      const t = this.ctx.currentTime + start;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+    // Kurzes, ausklingendes Rauschen (Plopp, Klatschen), hochpassgefiltert
+    noise(start, dur, vol, freq = 1500) {
+      if (!this.ready()) return;
+      const ctx = this.ctx;
+      const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      filter.type = 'highpass';
+      filter.frequency.value = freq;
+      gain.gain.value = vol;
+      src.buffer = buf;
+      src.connect(filter).connect(gain).connect(ctx.destination);
+      src.start(ctx.currentTime + start);
+    },
+    // Gemeinsame Gewinn-Fanfare
+    win() {
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
+    }
+  },
+  // Konfetti über allem (canvas.confetti); ms = wie lange neues nachfällt. Bei reduzierter Bewegung keins.
+  confetti: {
+    raf: null,
+    canvas() {
+      let c = document.querySelector('canvas.confetti');
+      if (!c) { c = document.createElement('canvas'); c.className = 'confetti'; c.hidden = true; document.body.appendChild(c); }
+      return c;
+    },
+    start(ms = 7000) {
+      if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const c = this.canvas();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      c.style.width = innerWidth + 'px';
+      c.style.height = innerHeight + 'px';
+      c.hidden = false;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const n = Math.round(Math.min(160, innerWidth / 5));
+      const parts = Array.from({ length: n }, () => ({
+        x: Math.random() * innerWidth,
+        y: -Math.random() * innerHeight,
+        s: Math.random() * 10 + 6,
+        c: colors[(Math.random() * colors.length) | 0],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2.5,
+        r: Math.random() * 360,
+        vr: (Math.random() - 0.5) * 10
+      }));
+      const end = performance.now() + ms;
+      const loop = (now) => {
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of parts) {
+          p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.y > innerHeight + 20 && now < end) p.y = -20;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.r * Math.PI / 180);
+          ctx.fillStyle = p.c;
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+          ctx.restore();
+        }
+        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
+        else this.stop();
+      };
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      cancelAnimationFrame(this.raf);
+      this.raf = null;
+      const c = document.querySelector('canvas.confetti');
+      if (c) c.hidden = true;
+    }
   },
   isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
   toggleFullscreen() {
@@ -467,7 +605,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('fullscreenchange', () => SPG.render());
 document.addEventListener('webkitfullscreenchange', () => SPG.render());
 window.addEventListener('storage', (e) => {
-  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); }
+  if (e.key === 'spg-muted') { SPG.muted = e.newValue !== '0'; SPG.render(); document.dispatchEvent(new Event('spg-mute')); }
 });
 // Zur Spieleübersicht nur online, die heruntergeladene Datei steht allein.
 // Vollbild gibt es nicht überall (z. B. iPhone).
@@ -490,106 +628,21 @@ SPG.render();
      Töne (Web Audio, keine Dateien nötig)
      =================================================================== */
   const Sound = {
-    ctx: null,
-    init() {
-      if (!this.ctx) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) this.ctx = new AC();
-      }
-      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
-    },
-    tone(freq, start, dur, type = 'sine', vol = 0.3, endFreq) {
-      if (SPG.muted) return;
-      const t = this.ctx.currentTime + start;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, t);
-      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
-      gain.gain.setValueAtTime(vol, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this.ctx.destination);
-      osc.start(t);
-      osc.stop(t + dur + 0.02);
-    },
     // Aufprall nach der Fallzeit, Spieler 1 tiefer als Spieler 2
-    drop(p, fall) { this.init(); if (this.ctx) this.tone(p === 1 ? 300 : 400, 0.12 + fall * 0.05, 0.12, 'triangle', 0.3, p === 1 ? 180 : 240); },
-    click() { this.init(); if (this.ctx) this.tone(660, 0, 0.06, 'sine', 0.15, 880); },
-    undo() { this.init(); if (this.ctx) this.tone(520, 0, 0.1, 'sine', 0.15, 320); },
-    win() {
-      this.init();
-      if (!this.ctx) return;
-      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, i * 0.1, 0.38, 'triangle', 0.28));
-    },
+    drop(p, fall) { SPG.sound.tone(p === 1 ? 300 : 400, 0.12 + fall * 0.05, 0.12, 'triangle', 0.3, p === 1 ? 180 : 240); },
+    click() { SPG.sound.tone(660, 0, 0.06, 'sine', 0.15, 880); },
+    undo() { SPG.sound.tone(520, 0, 0.1, 'sine', 0.15, 320); },
+    win() { SPG.sound.win(); },
     lose() {
-      this.init();
-      if (!this.ctx) return;
-      [392, 330, 262].forEach((f, i) => this.tone(f, i * 0.16, 0.3, 'triangle', 0.22));
+      if (!SPG.sound.ready()) return;
+      [392, 330, 262].forEach((f, i) => SPG.sound.tone(f, i * 0.16, 0.3, 'triangle', 0.22));
     },
     draw() {
-      this.init();
-      if (!this.ctx) return;
-      [392, 392].forEach((f, i) => this.tone(f, i * 0.18, 0.2, 'triangle', 0.2));
+      if (!SPG.sound.ready()) return;
+      [392, 392].forEach((f, i) => SPG.sound.tone(f, i * 0.18, 0.2, 'triangle', 0.2));
     }
   };
 
-  function buzz(ms) {
-    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
-  }
-
-  /* ===================================================================
-     Konfetti
-     =================================================================== */
-  const Confetti = {
-    canvas: document.getElementById('confetti'),
-    raf: null,
-    parts: [],
-    start() {
-      const c = this.canvas;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      c.width = innerWidth * dpr;
-      c.height = innerHeight * dpr;
-      c.style.width = innerWidth + 'px';
-      c.style.height = innerHeight + 'px';
-      c.hidden = false;
-      const ctx = c.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
-      const n = Math.round(Math.min(160, innerWidth / 5));
-      this.parts = Array.from({ length: n }, () => ({
-        x: Math.random() * innerWidth,
-        y: -Math.random() * innerHeight,
-        s: Math.random() * 10 + 6,
-        c: colors[(Math.random() * colors.length) | 0],
-        vx: (Math.random() - 0.5) * 3,
-        vy: Math.random() * 3 + 2.5,
-        r: Math.random() * 360,
-        vr: (Math.random() - 0.5) * 10
-      }));
-      const end = performance.now() + 7000;
-      const loop = (now) => {
-        ctx.clearRect(0, 0, innerWidth, innerHeight);
-        for (const p of this.parts) {
-          p.x += p.vx; p.y += p.vy; p.r += p.vr;
-          if (p.y > innerHeight + 20 && now < end) p.y = -20;
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.r * Math.PI / 180);
-          ctx.fillStyle = p.c;
-          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
-          ctx.restore();
-        }
-        if (now < end + 4000) this.raf = requestAnimationFrame(loop);
-        else this.stop();
-      };
-      cancelAnimationFrame(this.raf);
-      this.raf = requestAnimationFrame(loop);
-    },
-    stop() {
-      cancelAnimationFrame(this.raf);
-      this.canvas.hidden = true;
-    }
-  };
 
   /* ===================================================================
      Regeln und Computer-Gegner
@@ -715,7 +768,6 @@ SPG.render();
   /* ===================================================================
      Spiel
      =================================================================== */
-  const $ = (id) => document.getElementById(id);
 
   const LEVELS = [
     { label: 'Leicht', emoji: '🙂' },
@@ -724,8 +776,8 @@ SPG.render();
   ];
 
   const store = {
-    get(key, fallback) { try { const v = localStorage.getItem('vier-gewinnt.' + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
-    set(key, value) { try { localStorage.setItem('vier-gewinnt.' + key, JSON.stringify(value)); } catch (e) {} }
+    get(key, fallback) { return SPG.store.get('vier-gewinnt.' + key, fallback); },
+    set(key, value) { SPG.store.set('vier-gewinnt.' + key, value); }
   };
 
   const Game = {
@@ -768,8 +820,8 @@ SPG.render();
       $('btn-back').addEventListener('click', () => { Sound.click(); this.showStep('mode'); });
       $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
       $('confirm-yes').addEventListener('click', () => { $('confirm').hidden = true; this.openStart(); });
-      $('btn-again').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); this.newGame(); });
-      $('btn-look').addEventListener('click', () => { $('end').hidden = true; Confetti.stop(); });
+      $('btn-again').addEventListener('click', () => { $('end').hidden = true; SPG.confetti.stop(); this.newGame(); });
+      $('btn-look').addEventListener('click', () => { $('end').hidden = true; SPG.confetti.stop(); });
 
       for (const b of $('mode-grid').children) {
         b.addEventListener('click', () => {
@@ -790,10 +842,10 @@ SPG.render();
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { this.closeStart(); $('confirm').hidden = true; return; }
         if (!$('start').hidden || !$('confirm').hidden || !$('end').hidden) return;
-        if (e.key >= '1' && e.key <= '7') this.move(+e.key - 1);
+        if (e.key >= '1' && e.key <= '7') this.humanMove(+e.key - 1);
         else if (e.key === 'ArrowLeft') this.setGhost(this.ghost < 0 ? 3 : Math.max(0, this.ghost - 1));
         else if (e.key === 'ArrowRight') this.setGhost(this.ghost < 0 ? 3 : Math.min(COLS - 1, this.ghost + 1));
-        else if ((e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') && this.ghost >= 0) { e.preventDefault(); this.move(this.ghost); }
+        else if ((e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') && this.ghost >= 0) { e.preventDefault(); this.humanMove(this.ghost); }
         else if (e.key === 'Backspace' || e.key === 'u' || e.key === 'U') this.undo();
         else if (e.key === 'n' || e.key === 'N') this.askNew();
       });
@@ -821,7 +873,7 @@ SPG.render();
       store.set('level', level);
       $('start').hidden = true;
       $('end').hidden = true;
-      Confetti.stop();
+      SPG.confetti.stop();
       // Neuer Gegner: 🔴 fängt an
       this.newGame(changed ? 1 : undefined);
     },
@@ -872,7 +924,7 @@ SPG.render();
     canHumanMove() { return this.state === 'playing' && !this.isCpu(this.player); },
     onDown(e) {
       if (e.button > 0 || !this.canHumanMove()) return;
-      Sound.init();
+      SPG.sound.ready();
       this.pointer = e.pointerId;
       this.setGhost(this.colFromEvent(e));
     },
@@ -904,6 +956,8 @@ SPG.render();
     },
 
     /* ---------- Züge ---------- */
+    // Tastatur und Finger: nur wenn ein Mensch dran ist, nie für den Computer
+    humanMove(c) { if (this.canHumanMove()) this.move(c); },
     move(c) {
       if (this.state !== 'playing' || !this.board.canPlay(c)) return;
       const p = this.player;
@@ -917,7 +971,7 @@ SPG.render();
       this.discs[i] = disc;
       this.holes[i].setAttribute('aria-label', p === 1 ? 'Rot' : 'Gelb');
       Sound.drop(p, r + 1);
-      buzz(15);
+      SPG.buzz(15);
 
       const line = this.board.winAt(r, c);
       if (line) { this.finish(p, line, r + 1); return; }
@@ -989,12 +1043,12 @@ SPG.render();
         $('end-emoji').textContent = (winner === 1 ? '🔴' : '🟡') + '🎉';
         $('end-title').textContent = this.mode === 'cpu' ? 'Gewonnen!' : `${this.name(winner)} gewinnt!`;
         Sound.win();
-        buzz([60, 60, 120]);
+        SPG.buzz([60, 60, 120]);
       }
       $('end-text').textContent = `${this.name(1)} ${s[0]} : ${s[1]} ${this.name(2)}`;
       setTimeout(() => {
         if (this.state !== 'over') return;
-        if (humanWon) Confetti.start();
+        if (humanWon) SPG.confetti.start();
         $('end').hidden = false;
       }, landed + 700);
     },
@@ -1040,7 +1094,7 @@ SPG.render();
     closeStart() {
       $('start').hidden = true;
       // Nach 🔄 ohne Auswahl: neue Runde mit den bisherigen Einstellungen
-      if (this.state === 'over') { $('end').hidden = true; Confetti.stop(); this.newGame(); }
+      if (this.state === 'over') { $('end').hidden = true; SPG.confetti.stop(); this.newGame(); }
     }
   };
 
