@@ -29,10 +29,10 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
 |---|---|---|
 | `<body class>` | `game u6` | `game ue6` |
 | Farbe | warm: Orange/Gelb | kühl: Indigo/Violett |
-| Text | praktisch keiner: Emoji, Symbole, Ton, Vibration | kurze Wörter erlaubt (Punkte, „Neu“, Stufe), keine Absätze |
+| Text | praktisch keiner: Emoji, Symbole, Ton, Vibration. Überschriften und Sätze in Dialogen nur für Screenreader (`.visually-hidden`), Knöpfe mit `aria-label`. Ausnahme: kurze Hinweise für Eltern (z. B. Foto lässt sich nicht öffnen) | kurze Wörter erlaubt (Punkte, „Neu“, Stufe), keine Absätze |
 | Bedienung | tippen, ziehen; nichts kann „kaputtgehen“ | Wischen, langes Drücken, Tastatur am Tablet ok |
 | Einstellungen | im Startbildschirm, Schritt für Schritt mit großen Knöpfen | im Startbildschirm, kurze Wörter erlaubt |
-| Verlieren | gibt es nicht, nur Lob | ja, mit „Nochmal“-Knopf |
+| Verlieren | gibt es nicht, nur Lob (🚀 nochmal) | ja, mit „🔄 Nochmal“-Knopf |
 
 `body.game` macht die Seite zur festen Vollbildfläche (kein Scrollen, Zoomen, Markieren, Pull-to-Refresh).
 
@@ -55,10 +55,13 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
   🔄 verdrahtet das Spiel selbst. **Kein ⚙️** (prüft `tools/design.mjs`).
   Einzige Ausnahme: ein Knopf, den man mitten im Spiel sofort braucht (⏸️ bei Snake), steht davor ganz links.
 - **Spielknöpfe** (↩️ Zurück, 🚩 Flagge, 👁️ Vorlage …) stehen in `.gamebar` unter dem Spielfeld (große `.icon-btn`).
+  Ausnahme Steuerkreuz der Action-Spiele (Snake, Tetris, Breakout, Labyrinth): `.controls` neben bzw. unter dem Spielfeld,
+  Tasten nie kleiner als `var(--tap)`.
 - **Startbildschirm** statt Einstellungen: `.overlay` mit großen Auswahlknöpfen, erscheint beim Öffnen und nach 🔄
   (vorher Rückfrage, wenn ein Spiel läuft). Mehrere Einstellungen nacheinander als Schritte mit ⬅️ zurück
-  (z. B. Foto-Puzzle: 📷 Eigenes Foto / 🦕 Beispielfoto → Anzahl Teile; Seifenblasen: Spiel → Tempo).
+  (z. B. Foto-Puzzle: 📷 / 🦕 → Anzahl Teile; Seifenblasen: Spiel → Tempo).
   Die letzte Auswahl startet das Spiel. ✖️ schließt ihn und spielt weiter.
+  Action-Spiele mit mehreren Einstellungen auf einer Seite haben ▶️ Los neben ✖️; beide starten mit der Auswahl.
 - **Knöpfe** `.icon-btn` (quadratisch, Emoji), `.icon-btn.active` (eingeschaltet),
   `.big-btn` (Hauptaktion, Farbverlauf der Kategorie), `.big-btn.success` (Ja / Weiter), `.big-btn.plain` (Nein / Abbrechen),
   `.big-btn.soft` (Nebenaktion). Mehrere nebeneinander in `.row`, untereinander in `.stack`.
@@ -71,15 +74,29 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
 
 ## Verhalten
 
-- **Rückmeldung bei jeder Aktion:** kurzer Ton (Web Audio), bei Erfolg `navigator.vibrate(30)`, beim Gewinnen Konfetti + Dialog.
-  Vorlage: `Sound`, `buzz` und `Confetti` in [`foto-puzzle/index.html`](foto-puzzle/index.html) kopieren.
-- **Ton aus:** `Sound.tone()` (und jede andere Tonquelle) beginnt mit `if (SPG.muted) return;`.
-  Ton ist **anfangs aus** und der Zustand gilt für alle Spiele gemeinsam (`localStorage` `spg-muted`). Auch Sprachausgabe hält sich daran.
-- **Neustart mitten im Spiel** fragt nach (Dialog mit ✖️ / ✔️).
+- **Rückmeldung bei jeder Aktion:** kurzer Ton, bei Erfolg `SPG.buzz(30)`, beim Gewinnen `SPG.sound.win()` + `SPG.confetti.start()` + Dialog.
+  Die Bausteine kommen aus [`design/spg.js`](design/spg.js), **nicht kopieren** (`tools/design.mjs` lehnt Kopien ab):
+
+  | Baustein | Zweck |
+  |---|---|
+  | `SPG.sound.tone(freq, start, dur, type, vol, endFreq)`, `.noise(start, dur, vol)`, `.win()` | Töne mit Web Audio, schweigen von selbst bei Ton aus |
+  | `SPG.sound.ready()` / `SPG.sound.ctx` | nur für eigene Klangketten (z. B. Tier-Klavier): `false` bei Ton aus |
+  | `SPG.buzz(ms \| muster)` | Vibration, wo es sie gibt |
+  | `SPG.confetti.start(ms = 7000)` / `.stop()` | Konfetti auf `canvas.confetti`, aus bei `prefers-reduced-motion` |
+  | `SPG.store.get(key, fallback)` / `.set(key, value)` | Speichern als JSON in `localStorage`, Fehler werden geschluckt |
+  | `SPG.later(fn, ms)` / `SPG.clearLater()` | verzögerte Schritte (Gewinn-Dialog, nächste Runde); ein neues Spiel ruft `clearLater()` |
+  | `$(id)` | `document.getElementById` |
+  | Event `spg-mute` am `document` | Ton wurde an- oder ausgeschaltet (auch in einem anderen Tab) |
+
+  Ein Spiel hat ein kleines eigenes `Sound`-Objekt mit seinen Klängen, z. B. `eat() { SPG.sound.tone(520, 0, 0.08, 'square', 0.08, 780); }`.
+- **Ton aus:** Ton ist **anfangs aus** und gilt für alle Spiele gemeinsam (`spg-muted`). `SPG.sound` hält sich von selbst daran.
+  Jede andere Tonquelle (eigene Klangkette, Sprachausgabe) beginnt mit `if (SPG.muted) return;`.
+- **Neustart mitten im Spiel** fragt nach (Dialog mit ✖️ / ✔️). Es liegt nie ein Dialog über einem anderen:
+  🔄 schließt ein offenes Gewinn-/Ende-Fenster, und solange ein Dialog offen ist, läuft das Spiel nicht von selbst weiter.
 - **Kein Kontextmenü** bei langem Drücken (`contextmenu` → `preventDefault`), außer das Spiel braucht es nicht anders.
 - **Drehen** des Geräts baut das Spielfeld neu auf, ohne Fortschritt zu verlieren.
 - `prefers-reduced-motion` wird von `spg.css` berücksichtigt.
-- Speichern (Highscore, Einstellungen) nur über `localStorage` in `try/catch`.
+- Speichern (Highscore, Einstellungen) nur über `SPG.store`. Schlüssel beginnen mit dem Spielnamen.
 
 ## Pflicht-Kopf jeder Spieldatei
 
@@ -106,4 +123,4 @@ Alle Spiele sehen gleich aus und fühlen sich gleich an. Die Regeln hier gelten 
 1. Ordner `<name>/index.html` anlegen (Kopf wie oben), `node tools/design.mjs --write`.
 2. In der Startseite `index.html` eine `article.card.game-card` in der passenden Sektion (`.u6` oder `.ue6`) ergänzen,
    mit ▶️ Spielen und ⬇️ Herunterladen (`download="<name>.html"`). Den Platzhalter „Bald mehr“ entfernen, sobald die Sektion ein Spiel hat.
-3. `node tools/design.mjs` muss grün sein. Am Pixel-8a-Format (412 × 915) und Tablet (820 × 1180, quer 1180 × 820) anschauen.
+3. `node tools/design.mjs` und `node tools/smoke.mjs <name>` müssen grün sein (beide laufen auch in CI). Am Pixel-8a-Format (412 × 915) und Tablet (820 × 1180, quer 1180 × 820) anschauen.

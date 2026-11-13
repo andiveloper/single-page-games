@@ -17,6 +17,7 @@ Ein neues Spiel kommt in einen eigenen Ordner (`mein-spiel/index.html`) und wird
 Die gemeinsamen Design-Regeln stehen in [`DESIGN.md`](DESIGN.md).
 
 ```sh
-node tools/design.mjs --write   # gemeinsames CSS aus design/spg.css einsetzen
+node tools/design.mjs --write   # gemeinsames CSS und JS aus design/spg.css und design/spg.js einsetzen
 node tools/design.mjs           # prüfen (läuft auch in CI)
+node tools/smoke.mjs [spiel …]  # Rauchtest im Browser: JS-Fehler, Überlauf, 🔄-Rückfrage (braucht Playwright, läuft auch in CI)
 ```
